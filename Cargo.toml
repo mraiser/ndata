@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 readme = "README.md"
-description="A self-owned data structure with an internal heap and garbage collection."
+description = "A self-owned data structure with an internal heap and garbage collection."
+homepage = "https://github.com/mraiser/ndata"
+documentation = "https://github.com/mraiser/ndata"
+repository = "https://github.com/mraiser/ndata"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
