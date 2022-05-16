@@ -78,6 +78,17 @@ impl Data {
   pub fn array(&self) -> DataArray {
     if let Data::DArray(i) = self { DataArray::get(*i) } else { panic!("Not an array {:?}", self); }
   }
+  
+  pub fn as_string(a:Data) -> String {
+    if a.is_float() { return a.float().to_string(); }
+    if a.is_int() { return a.int().to_string(); }
+    if a.is_string() { return a.string(); }
+    if a.is_boolean() { return a.boolean().to_string(); }
+    if a.is_object() { return a.object().to_json().to_string(); }
+    if a.is_array() { return a.array().to_json().to_string(); }
+    if a.is_null() { return "null".to_string(); }
+    "".to_string()
+  }
 }
 
 impl Default for Data {
