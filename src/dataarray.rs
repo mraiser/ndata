@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use crate::heap::*;
 use crate::data::*;
 use crate::dataobject::*;
+use crate::databytes::*;
 
 pub static AHEAP:Storage<RwLock<Heap<Vec<Data>>>> = Storage::new();
 pub static ADROP:Storage<RwLock<Vec<usize>>> = Storage::new();
@@ -44,7 +45,7 @@ impl DataArray {
       else if val.is_i64() { o.push_i64(val.as_i64().unwrap()); }
       else if val.is_f64() { o.push_float(val.as_f64().unwrap()); }
       else if val.is_object() { o.push_object(DataObject::from_json(val.to_owned())); }
-      else if val.is_array() { o.push_list(DataArray::from_json(val.to_owned())); }      
+      else if val.is_array() { o.push_array(DataArray::from_json(val.to_owned())); }      
       else { println!("Unknown type {}", val) };
     }
       
@@ -61,6 +62,7 @@ impl DataArray {
       else if old.is_string() { val.push(json!(self.get_string(id))); }
       else if old.is_object() { val.push(self.get_object(id).to_json()); }
       else if old.is_array() { val.push(self.get_array(id).to_json()); }
+      else if old.is_bytes() { val.push(json!(self.get_bytes(id).to_hex_string())); }
       else { val.push(json!(null)); }
       id = id + 1;
     }
@@ -91,7 +93,10 @@ impl DataArray {
         o.push_object(self.get_object(id).deep_copy());
       }
       else if v.is_array() {
-        o.push_list(self.get_array(id).deep_copy());
+        o.push_array(self.get_array(id).deep_copy());
+      }
+      else if v.is_bytes() {
+        o.push_bytes(self.get_bytes(id).deep_copy());
       }
       else {
         o.push_property(v.clone());
@@ -138,10 +143,17 @@ impl DataArray {
     self.get_property(id).object()
   }
 
+  pub fn get_bytes(&self, id:usize) -> DataBytes {
+    self.get_property(id).bytes()
+  }
+
   pub fn push_property(&mut self, data:Data) {
     let aheap = &mut AHEAP.get().write().unwrap();
     if let Data::DObject(i) = &data {
       OHEAP.get().write().unwrap().incr(*i);
+    }
+    else if let Data::DBytes(i) = &data {
+      BHEAP.get().write().unwrap().incr(*i);
     }
     else if let Data::DArray(i) = &data {
       aheap.incr(*i); 
@@ -171,8 +183,17 @@ impl DataArray {
     self.push_property(Data::DObject(o.data_ref));
   }
   
+  #[deprecated(since="0.1.2", note="please use `push_array` instead")]  
   pub fn push_list(&mut self, a:DataArray) {
     self.push_property(Data::DArray(a.data_ref));
+  }
+  
+  pub fn push_array(&mut self, a:DataArray) {
+    self.push_property(Data::DArray(a.data_ref));
+  }
+  
+  pub fn push_bytes(&mut self, a:DataBytes) {
+    self.push_property(Data::DBytes(a.data_ref));
   }
   
   // FIXME - add insert/set_...(index, value) function for all types
@@ -189,6 +210,11 @@ impl DataArray {
       let oheap = &mut OHEAP.get().write().unwrap();
       DataArray::delete(aheap, *i, oheap);
     }
+    else if let Data::DBytes(i) = &old {
+      let _x = DataBytes {
+        data_ref: *i,
+      };
+    }
   }
   
   pub fn delete(aheap:&mut Heap<Vec<Data>>, data_ref:usize, oheap:&mut Heap<HashMap<String,Data>>) {
@@ -204,6 +230,11 @@ impl DataArray {
         }
         else if let Data::DArray(i) = v {
           arrays_to_kill.push(*i);
+        }
+        else if let Data::DBytes(i) = v {
+          let _x = DataBytes {
+            data_ref: *i,
+          };
         }
       }
     }

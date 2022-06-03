@@ -1,10 +1,12 @@
 use crate::dataobject::*;
 use crate::dataarray::*;
+use crate::databytes::*;
 
 #[derive(Debug)]
 pub enum Data {
   DObject(usize),
   DArray(usize),
+  DBytes(usize),
   DString(String),
   DBoolean(bool),
   DFloat(f64),
@@ -20,6 +22,7 @@ impl Data {
     if let Data::DString(d) = self { return Data::DString(d.to_owned()); } 
     if let Data::DObject(d) = self { return Data::DObject(*d); } 
     if let Data::DArray(d) = self { return Data::DArray(*d); } 
+    if let Data::DBytes(d) = self { return Data::DBytes(*d); } 
     Data::DNull 
   }
   
@@ -51,6 +54,10 @@ impl Data {
     if let Data::DArray(_i) = self { true } else { false }
   }
   
+  pub fn is_bytes(&self) -> bool {
+    if let Data::DBytes(_i) = self { true } else { false }
+  }
+  
   pub fn is_null(self) -> bool {
     if let Data::DNull = self { true } else { false }
   }
@@ -79,6 +86,10 @@ impl Data {
     if let Data::DArray(i) = self { DataArray::get(*i) } else { panic!("Not an array {:?}", self); }
   }
   
+  pub fn bytes(&self) -> DataBytes {
+    if let Data::DBytes(i) = self { DataBytes::get(*i) } else { panic!("Not a byte array {:?}", self); }
+  }
+  
   pub fn as_string(a:Data) -> String {
     if a.is_float() { return a.float().to_string(); }
     if a.is_int() { return a.int().to_string(); }
@@ -86,6 +97,7 @@ impl Data {
     if a.is_boolean() { return a.boolean().to_string(); }
     if a.is_object() { return a.object().to_json().to_string(); }
     if a.is_array() { return a.array().to_json().to_string(); }
+    if a.is_bytes() { return a.bytes().to_hex_string(); }
     if a.is_null() { return "null".to_string(); }
     "".to_string()
   }
