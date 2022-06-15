@@ -1,12 +1,12 @@
-use std::sync::RwLock;
+use std::sync::Mutex;
 use state::Storage;
 
 use crate::heap::*;
 
 /// Storage for runtime byte buffer values
-pub static BHEAP:Storage<RwLock<Heap<Vec<u8>>>> = Storage::new();
+pub static BHEAP:Storage<Mutex<Heap<Vec<u8>>>> = Storage::new();
 /// Storage for runtime reference count reductions
-pub static BDROP:Storage<RwLock<Vec<usize>>> = Storage::new();
+pub static BDROP:Storage<Mutex<Vec<usize>>> = Storage::new();
 
 /// Represents a buffer of bytes (```Vec<u8>```)
 #[derive(Debug, Default)]
@@ -18,13 +18,13 @@ pub struct DataBytes {
 impl DataBytes {
   /// Initialize global storage of byte buffers. Call only once at startup.
   pub fn init(){
-    BHEAP.set(RwLock::new(Heap::new()));
-    BDROP.set(RwLock::new(Vec::new()));
+    BHEAP.set(Mutex::new(Heap::new()));
+    BDROP.set(Mutex::new(Vec::new()));
   }
   
   /// Create a new (empty) byte buffer.
   pub fn new() -> DataBytes {
-    let data_ref = &mut BHEAP.get().write().unwrap().push(Vec::<u8>::new());
+    let data_ref = &mut BHEAP.get().lock().unwrap().push(Vec::<u8>::new());
     return DataBytes {
       data_ref: *data_ref,
     };
@@ -35,7 +35,7 @@ impl DataBytes {
     let o = DataBytes{
       data_ref: data_ref,
     };
-    let _x = &mut BHEAP.get().write().unwrap().incr(data_ref);
+    let _x = &mut BHEAP.get().lock().unwrap().incr(data_ref);
     o
   }
   
@@ -44,16 +44,16 @@ impl DataBytes {
     let o = DataBytes{
       data_ref: self.data_ref,
     };
-    let _x = &mut BHEAP.get().write().unwrap().incr(self.data_ref);
+    let _x = &mut BHEAP.get().lock().unwrap().incr(self.data_ref);
     o
   }
   
   /// Returns a new ```DataBytes``` that points to a copy of the underlying byte buffer.
   pub fn deep_copy(&self) -> DataBytes {
-    let heap = &mut BHEAP.get().write().unwrap();
+    let heap = &mut BHEAP.get().lock().unwrap();
     let bytes = heap.get(self.data_ref);
     let vec = bytes.to_owned();
-    let data_ref = &mut BHEAP.get().write().unwrap().push(vec);
+    let data_ref = &mut BHEAP.get().lock().unwrap().push(vec);
     return DataBytes {
       data_ref: *data_ref,
     };
@@ -61,7 +61,7 @@ impl DataBytes {
   
   /// Returns the byte buffer as a hexidecimal String.
   pub fn to_hex_string(&self) -> String {
-    let heap = &mut BHEAP.get().write().unwrap();
+    let heap = &mut BHEAP.get().lock().unwrap();
     let bytes = heap.get(self.data_ref);
     let strs: Vec<String> = bytes.iter()
                                  .map(|b| format!("{:02X}", b))
@@ -71,14 +71,14 @@ impl DataBytes {
   
   /// Prints the byte buffers currently stored in the heap
   pub fn print_heap() {
-    println!("object {:?}", &mut BHEAP.get().write().unwrap());
+    println!("object {:?}", &mut BHEAP.get().lock().unwrap());
   }
   
   /// Perform garbage collection. Byte buffers will not be removed from the heap until
   /// ```DataBytes::gc()``` is called.
   pub fn gc() {
-    let bheap = &mut BHEAP.get().write().unwrap();
-    let bdrop = &mut BDROP.get().write().unwrap();
+    let bheap = &mut BHEAP.get().lock().unwrap();
+    let bdrop = &mut BDROP.get().lock().unwrap();
     let mut i = bdrop.len();
     while i>0 {
       i = i - 1;
@@ -92,7 +92,7 @@ impl DataBytes {
 /// ```DataBytes::gc()``` is called.
 impl Drop for DataBytes {
   fn drop(&mut self) {
-    BDROP.get().write().unwrap().push(self.data_ref);
+    BDROP.get().lock().unwrap().push(self.data_ref);
   }
 }
 

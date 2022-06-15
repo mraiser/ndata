@@ -1,7 +1,7 @@
 use serde_json::Value;
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::Mutex;
 use state::Storage;
 
 use crate::heap::*;
@@ -10,9 +10,9 @@ use crate::dataarray::*;
 use crate::databytes::*;
 
 /// Storage for runtime object values
-pub static OHEAP:Storage<RwLock<Heap<HashMap<String,Data>>>> = Storage::new();
+pub static OHEAP:Storage<Mutex<Heap<HashMap<String,Data>>>> = Storage::new();
 /// Storage for runtime reference count reductions
-pub static ODROP:Storage<RwLock<Vec<usize>>> = Storage::new();
+pub static ODROP:Storage<Mutex<Vec<usize>>> = Storage::new();
 
 /// Represents a map of type ```<String, ndata.Data>```. 
 #[derive(Debug, Default)]
@@ -24,13 +24,13 @@ pub struct DataObject {
 impl DataObject {
   /// Initialize global storage of objects. Call only once at startup.
   pub fn init(){
-    OHEAP.set(RwLock::new(Heap::new()));
-    ODROP.set(RwLock::new(Vec::new()));
+    OHEAP.set(Mutex::new(Heap::new()));
+    ODROP.set(Mutex::new(Vec::new()));
   }
   
   /// Create a new (empty) object.
   pub fn new() -> DataObject {
-    let data_ref = &mut OHEAP.get().write().unwrap().push(HashMap::<String,Data>::new());
+    let data_ref = &mut OHEAP.get().lock().unwrap().push(HashMap::<String,Data>::new());
     return DataObject {
       data_ref: *data_ref,
     };
@@ -41,7 +41,7 @@ impl DataObject {
     let o = DataObject{
       data_ref: data_ref,
     };
-    let _x = &mut OHEAP.get().write().unwrap().incr(data_ref);
+    let _x = &mut OHEAP.get().lock().unwrap().incr(data_ref);
     o
   }
   
@@ -83,7 +83,7 @@ impl DataObject {
     let o = DataObject{
       data_ref: self.data_ref,
     };
-    let _x = &mut OHEAP.get().write().unwrap().incr(self.data_ref);
+    let _x = &mut OHEAP.get().lock().unwrap().incr(self.data_ref);
     o
   }
   
@@ -120,7 +120,7 @@ impl DataObject {
   
   /// Returns ```true``` if this object contains the given key.
   pub fn has(&self, key:&str) -> bool {
-    let heap = &mut OHEAP.get().write().unwrap();
+    let heap = &mut OHEAP.get().lock().unwrap();
     let map = heap.get(self.data_ref);
     map.contains_key(key)
   }
@@ -136,7 +136,7 @@ impl DataObject {
   
   /// Returns the stored value for the given key.
   pub fn get_property(&self, key:&str) -> Data {
-    let heap = &mut OHEAP.get().write().unwrap();
+    let heap = &mut OHEAP.get().lock().unwrap();
     let map = heap.get(self.data_ref);
     let data = map.get(key).unwrap();
     data.clone()
@@ -179,16 +179,18 @@ impl DataObject {
   
   /// Remove the value from the object for the given key.
   pub fn remove_property(&mut self, key:&str) {
-    let oheap = &mut OHEAP.get().write().unwrap();
+    let oheap = &mut OHEAP.get().lock().unwrap();
     let map = oheap.get(self.data_ref);
     if let Some(old) = map.remove(key){
       if let Data::DObject(i) = &old {
-        let aheap = &mut AHEAP.get().write().unwrap();
-        DataObject::delete(oheap, *i, aheap);
+        let _x = DataObject {
+          data_ref: *i,
+        };
       }
       else if let Data::DArray(i) = &old {
-        let aheap = &mut AHEAP.get().write().unwrap();
-        DataArray::delete(aheap, *i, oheap);
+        let _x = DataArray {
+          data_ref: *i,
+        };
       }
       else if let Data::DBytes(i) = &old {
         let _x = DataBytes {
@@ -200,30 +202,36 @@ impl DataObject {
   
   /// Set the given value for the given key.
   pub fn set_property(&mut self, key:&str, data:Data) {
-    let oheap = &mut OHEAP.get().write().unwrap();
-    let aheap = &mut AHEAP.get().write().unwrap();
-    let bheap = &mut BHEAP.get().write().unwrap();
-    
     if let Data::DObject(i) = &data {
+      let oheap = &mut OHEAP.get().lock().unwrap();
       oheap.incr(*i); 
     }
     else if let Data::DArray(i) = &data {
+      let aheap = &mut AHEAP.get().lock().unwrap();
       aheap.incr(*i);
     }
     else if let Data::DBytes(i) = &data {
+      let bheap = &mut BHEAP.get().lock().unwrap();
       bheap.incr(*i);
     }
     
+    let oheap = &mut OHEAP.get().lock().unwrap();
     let map = oheap.get(self.data_ref);
     if let Some(old) = map.insert(key.to_string(),data){
       if let Data::DObject(i) = &old {
-        DataObject::delete(oheap, *i, aheap);
+        let _x = DataObject {
+          data_ref: *i,
+        };
       }
       else if let Data::DArray(i) = &old {
-        DataArray::delete(aheap, *i, oheap);
+        let _x = DataArray {
+          data_ref: *i,
+        };
       }
       else if let Data::DBytes(i) = &old {
-        bheap.decr(*i);
+        let _x = DataBytes {
+          data_ref: *i,
+        };
       }
     }
   }
@@ -311,7 +319,7 @@ impl DataObject {
   
   /// Returns the key value pairs in this object as a ```Vec<String, Data>```. 
   pub fn objects(&self) -> Vec<(String, Data)> {
-    let heap = &mut OHEAP.get().write().unwrap();
+    let heap = &mut OHEAP.get().lock().unwrap();
     let map = heap.get(self.data_ref);
     let mut vec = Vec::<(String, Data)>::new();
     for (k,v) in map {
@@ -322,15 +330,15 @@ impl DataObject {
   
   /// Prints the objects currently stored in the heap
   pub fn print_heap() {
-    println!("object {:?}", &mut OHEAP.get().write().unwrap());
+    println!("object {:?}", &mut OHEAP.get().lock().unwrap());
   }
   
   /// Perform garbage collection. Objects will not be removed from the heap until
   /// ```DataObject::gc()``` is called.
   pub fn gc() {
-    let oheap = &mut OHEAP.get().write().unwrap();
-    let aheap = &mut AHEAP.get().write().unwrap();
-    let odrop = &mut ODROP.get().write().unwrap();
+    let oheap = &mut OHEAP.get().lock().unwrap();
+    let aheap = &mut AHEAP.get().lock().unwrap();
+    let odrop = &mut ODROP.get().lock().unwrap();
     let mut i = odrop.len();
     while i>0 {
       i = i - 1;
@@ -344,7 +352,7 @@ impl DataObject {
 /// ```DataObject::gc()``` is called.
 impl Drop for DataObject {
   fn drop(&mut self) {
-    ODROP.get().write().unwrap().push(self.data_ref);
+    ODROP.get().lock().unwrap().push(self.data_ref);
   }
 }
 

@@ -1,5 +1,5 @@
 use serde_json::*;
-use std::sync::RwLock;
+use std::sync::Mutex;
 use state::Storage;
 use std::collections::HashMap;
 
@@ -9,9 +9,9 @@ use crate::dataobject::*;
 use crate::databytes::*;
 
 /// Storage for runtime array values
-pub static AHEAP:Storage<RwLock<Heap<Vec<Data>>>> = Storage::new();
+pub static AHEAP:Storage<Mutex<Heap<Vec<Data>>>> = Storage::new();
 /// Storage for runtime reference count reductions
-pub static ADROP:Storage<RwLock<Vec<usize>>> = Storage::new();
+pub static ADROP:Storage<Mutex<Vec<usize>>> = Storage::new();
 
 /// Represents an array of type ```ndata.Data```. 
 pub struct DataArray {
@@ -22,13 +22,13 @@ pub struct DataArray {
 impl DataArray {
   /// Initialize global storage of Arrays. Call only once at startup.
   pub fn init(){
-    AHEAP.set(RwLock::new(Heap::new()));
-    ADROP.set(RwLock::new(Vec::new()));
+    AHEAP.set(Mutex::new(Heap::new()));
+    ADROP.set(Mutex::new(Vec::new()));
   }
   
   /// Create a new (empty) array.
   pub fn new() -> DataArray {
-    let data_ref = &mut AHEAP.get().write().unwrap().push(Vec::<Data>::new());
+    let data_ref = &mut AHEAP.get().lock().unwrap().push(Vec::<Data>::new());
     return DataArray {
       data_ref: *data_ref,
     };
@@ -39,7 +39,7 @@ impl DataArray {
     let o = DataArray{
       data_ref: data_ref,
     };
-    let _x = &mut AHEAP.get().write().unwrap().incr(data_ref);
+    let _x = &mut AHEAP.get().lock().unwrap().incr(data_ref);
     o
   }
   
@@ -83,7 +83,7 @@ impl DataArray {
     let o = DataArray{
       data_ref: self.data_ref,
     };
-    let _x = &mut AHEAP.get().write().unwrap().incr(self.data_ref);
+    let _x = &mut AHEAP.get().lock().unwrap().incr(self.data_ref);
     o
   }
   
@@ -122,14 +122,14 @@ impl DataArray {
 
   /// Returns the length of the array.
   pub fn len(&self) -> usize {
-    let heap = &mut AHEAP.get().write().unwrap();
+    let heap = &mut AHEAP.get().lock().unwrap();
     let vec = heap.get(self.data_ref);
     vec.len()
   }
   
   /// Returns the indexed value from the array
   pub fn get_property(&self, id:usize) -> Data {
-    let heap = &mut AHEAP.get().write().unwrap();
+    let heap = &mut AHEAP.get().lock().unwrap();
     let vec = heap.get(self.data_ref);
     let data = vec.get_mut(id).unwrap();
     data.clone()
@@ -170,19 +170,26 @@ impl DataArray {
     self.get_property(id).bytes()
   }
   
+  /// Append all values from another array
+  pub fn join(&mut self, a:DataArray) {
+    for val in a.objects() {
+      self.push_property(val);
+    }
+  }
+  
   /// Append the given value to the end of the array
   pub fn push_property(&mut self, data:Data) {
-    let aheap = &mut AHEAP.get().write().unwrap();
     if let Data::DObject(i) = &data {
-      OHEAP.get().write().unwrap().incr(*i);
+      OHEAP.get().lock().unwrap().incr(*i);
     }
     else if let Data::DBytes(i) = &data {
-      BHEAP.get().write().unwrap().incr(*i);
+      BHEAP.get().lock().unwrap().incr(*i);
     }
     else if let Data::DArray(i) = &data {
-      aheap.incr(*i); 
+      AHEAP.get().lock().unwrap().incr(*i); 
     }
   
+    let aheap = &mut AHEAP.get().lock().unwrap();
     let vec = aheap.get(self.data_ref);
     vec.push(data);
   }
@@ -231,16 +238,18 @@ impl DataArray {
   
   /// Remove the indexed value from the array
   pub fn remove_property(&mut self, id:usize) {
-    let aheap = &mut AHEAP.get().write().unwrap();
+    let aheap = &mut AHEAP.get().lock().unwrap();
     let vec = aheap.get(self.data_ref);
     let old = vec.remove(id);
     if let Data::DObject(i) = &old {
-      let oheap = &mut OHEAP.get().write().unwrap();
-      DataObject::delete(oheap, *i, aheap);
+      let _x = DataObject {
+        data_ref: *i,
+      };
     }
     else if let Data::DArray(i) = &old {
-      let oheap = &mut OHEAP.get().write().unwrap();
-      DataArray::delete(aheap, *i, oheap);
+      let _x = DataArray {
+        data_ref: *i,
+      };
     }
     else if let Data::DBytes(i) = &old {
       let _x = DataBytes {
@@ -287,7 +296,7 @@ impl DataArray {
   
   /// Returns this array as a ```Vec<Data>```. 
   pub fn objects(&self) -> Vec<Data> {
-    let heap = &mut AHEAP.get().write().unwrap();
+    let heap = &mut AHEAP.get().lock().unwrap();
     let map = heap.get(self.data_ref);
     let mut vec = Vec::<Data>::new();
     for v in map {
@@ -298,15 +307,15 @@ impl DataArray {
   
   /// Prints the arrays currently stored in the heap
   pub fn print_heap() {
-    println!("array {:?}", &AHEAP.get().write().unwrap());
+    println!("array {:?}", &AHEAP.get().lock().unwrap());
   }
   
   /// Perform garbage collection. Arrays will not be removed from the heap until
   /// ```DataArray::gc()``` is called.
   pub fn gc() {
-    let aheap = &mut AHEAP.get().write().unwrap();
-    let oheap = &mut OHEAP.get().write().unwrap();
-    let adrop = &mut ADROP.get().write().unwrap();
+    let oheap = &mut OHEAP.get().lock().unwrap();
+    let aheap = &mut AHEAP.get().lock().unwrap();
+    let adrop = &mut ADROP.get().lock().unwrap();
     let mut i = adrop.len();
     while i>0 {
       i = i - 1;
@@ -320,7 +329,7 @@ impl DataArray {
 /// ```DataArray::gc()``` is called.
 impl Drop for DataArray {
   fn drop(&mut self) {
-    ADROP.get().write().unwrap().push(self.data_ref);
+    ADROP.get().lock().unwrap().push(self.data_ref);
   }
 }
 
