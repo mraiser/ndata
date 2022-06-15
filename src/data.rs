@@ -184,6 +184,19 @@ impl Data {
     if a.is_null() { return "null".to_string(); }
     "".to_string()
   }
+  
+  // Return true if the two Data structs are equal
+  pub fn equals(a:Data, b:Data) -> bool {
+    if a.is_float() { if b.is_float() { return a.float() == b.float(); } }
+    else if a.is_int() { if b.is_int() { return a.int() == b.int(); } }
+    else if a.is_string() { if b.is_string() { return a.string() == b.string(); } }
+    else if a.is_boolean() { if b.is_boolean() { return a.boolean() == b.boolean(); } }
+    else if a.is_object() { if b.is_object() { return a.object().data_ref == b.object().data_ref; } }
+    else if a.is_array() { if b.is_array() { return a.array().data_ref == b.array().data_ref; } }
+    else if a.is_bytes() { if b.is_bytes() { return a.bytes().data_ref == b.bytes().data_ref; } }
+    else if a.is_null() { return b.is_null(); }
+    false
+  }
 }
 
 /// The default for ```ndata.Data``` is ```DNull```.
