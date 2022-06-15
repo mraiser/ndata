@@ -1,6 +1,6 @@
 [package]
 name = "ndata"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 license = "MIT"
 readme = "README.md"
@@ -14,7 +14,7 @@ repository = "https://github.com/mraiser/ndata"
 [dependencies]
 serde = { version = "1.0.136", features = ["derive"] }
 serde_json = "1.0.79"
-state="0.5.2"
+state="0.5.3"
 
 [lib]
 name = "ndata"
