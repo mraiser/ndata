@@ -136,40 +136,40 @@ impl Data {
   
   /// Returns the underlying ```i64``` value, or panics if not ```DInt```.
   pub fn int(&self) -> i64 {
-    if let Data::DInt(i) = self { *i } else { panic!("Not an int"); }
+    if let Data::DInt(i) = self { *i } else { panic!("Not an int: {:?}/{}", self, Data::as_string(self.clone())); }
   }
 
   /// Returns the underlying ```f64``` value, or panics if not ```DFloat```.
   pub fn float(&self) -> f64 {
-    if let Data::DFloat(f) = self { *f } else { panic!("Not a float"); }
+    if let Data::DFloat(f) = self { *f } else { panic!("Not a float: {:?}/{}", self, Data::as_string(self.clone())); }
   }
 
   /// Returns the underlying ```bool``` value, or panics if not ```DBoolean```.
   pub fn boolean(&self) -> bool {
-    if let Data::DBoolean(b) = self { *b } else { panic!("Not a boolean"); }
+    if let Data::DBoolean(b) = self { *b } else { panic!("Not a boolean: {:?}/{}", self, Data::as_string(self.clone())); }
   }
 
   /// Returns the underlying ```String``` value, or panics if not ```DString```.
   pub fn string(&self) -> String {
-    if let Data::DString(s) = self { s.to_owned() } else { panic!("Not a string"); }
+    if let Data::DString(s) = self { s.to_owned() } else { panic!("Not a string: {:?}/{}", self, Data::as_string(self.clone())); }
   }
 
   /// Returns a new ```DataObject``` representing the underlying object instance, 
   /// or panics if not ```DObject```.
   pub fn object(&self) -> DataObject {
-    if let Data::DObject(i) = self { DataObject::get(*i) } else { panic!("Not an object {:?}", self); }
+    if let Data::DObject(i) = self { DataObject::get(*i) } else { panic!("Not an object: {:?}/{}", self, Data::as_string(self.clone())); }
   }
 
   /// Returns a new ```DataArray``` representing the underlying array instance, 
   /// or panics if not ```DArray```.
   pub fn array(&self) -> DataArray {
-    if let Data::DArray(i) = self { DataArray::get(*i) } else { panic!("Not an array {:?}", self); }
+    if let Data::DArray(i) = self { DataArray::get(*i) } else { panic!("Not an array: {:?}/{}", self, Data::as_string(self.clone())); }
   }
   
   /// Returns a new ```DataBytes``` representing the underlying byte buffer instance, 
   /// or panics if not ```DBytes```.
   pub fn bytes(&self) -> DataBytes {
-    if let Data::DBytes(i) = self { DataBytes::get(*i) } else { panic!("Not a byte array {:?}", self); }
+    if let Data::DBytes(i) = self { DataBytes::get(*i) } else { panic!("Not a byte array: {:?}/{}", self, Data::as_string(self.clone())); }
   }
   
   /// Returns a ```String``` representation of the underlying value.
