@@ -138,8 +138,9 @@ impl DataObject {
   pub fn get_property(&self, key:&str) -> Data {
     let heap = &mut OHEAP.get().lock().unwrap();
     let map = heap.get(self.data_ref);
-    let data = map.get(key).unwrap();
-    data.clone()
+    let data = map.get(key);
+    if data.is_none() { panic!("Object {:?} does not have key {}", map, key); }
+    data.unwrap().clone()
   }
   
   /// Returns the stored value for the given key as a ```String```.
