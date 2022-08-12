@@ -39,6 +39,18 @@ impl DataBytes {
     o
   }
   
+  /// Increase the reference count for this DataBytes.
+  pub fn incr(&self) {
+    let bheap = &mut BHEAP.get().lock().unwrap();
+    bheap.incr(self.data_ref); 
+  }
+
+  /// Decrease the reference count for this DataBytes.
+  pub fn decr(&self) {
+    let bheap = &mut BHEAP.get().lock().unwrap();
+    bheap.decr(self.data_ref); 
+  }
+
   /// Returns a new ```DataBytes``` that points to the same underlying byte buffer.
   pub fn duplicate(&self) -> DataBytes {
     let o = DataBytes{

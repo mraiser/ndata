@@ -1,13 +1,16 @@
-use serde_json::Value;
-use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use state::Storage;
+#[cfg(feature="serde_support")]
+use serde_json::Value;
+#[cfg(feature="serde_support")]
+use serde_json::json;
 
 use crate::heap::*;
 use crate::data::*;
 use crate::dataarray::*;
 use crate::databytes::*;
+use crate::json_util::*;
 
 /// Storage for runtime object values
 pub static OHEAP:Storage<Mutex<Heap<HashMap<String,Data>>>> = Storage::new();
@@ -45,7 +48,30 @@ impl DataObject {
     o
   }
   
+  /// Increase the reference count for this DataObject.
+  pub fn incr(&self) {
+    let oheap = &mut OHEAP.get().lock().unwrap();
+    oheap.incr(self.data_ref); 
+  }
+
+  /// Decrease the reference count for this DataObject.
+  pub fn decr(&self) {
+    let oheap = &mut OHEAP.get().lock().unwrap();
+    oheap.decr(self.data_ref); 
+  }
+
+  /// Create a new DataObject from a JSON string.
+  pub fn from_string(s:&str) -> DataObject {
+    object_from_string(s)
+  }  
+  
+  /// Create a JSON string from a DataObject.
+  pub fn to_string(&self) -> String {
+    object_to_string(self.duplicate())
+  }  
+  
   /// Create a new object from the ```serde_json::Value```.
+  #[cfg(feature="serde_support")]
   pub fn from_json(value:Value) -> DataObject {
     let mut o = DataObject::new();
     
@@ -63,6 +89,7 @@ impl DataObject {
   }
   
   /// Return the object as a ```serde_json::Value```.
+  #[cfg(feature="serde_support")]
   pub fn to_json(&self) -> Value {
     let mut val = json!({});
     for (keystr,old) in self.objects() {
@@ -160,7 +187,9 @@ impl DataObject {
   
   /// Returns the stored value for the given key as an ```f64```.
   pub fn get_f64(&self, key:&str) -> f64 {
-    self.get_property(key).float()
+    let d = self.get_property(key);
+    if d.is_int() { return d.int() as f64; }
+    d.float()
   }
   
   /// Returns the stored value for the given key as a ```DataObject```.

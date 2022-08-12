@@ -1,12 +1,14 @@
-use serde_json::*;
 use std::sync::Mutex;
 use state::Storage;
 use std::collections::HashMap;
+#[cfg(feature="serde_support")]
+use serde_json::*;
 
 use crate::heap::*;
 use crate::data::*;
 use crate::dataobject::*;
 use crate::databytes::*;
+use crate::json_util::*;
 
 /// Storage for runtime array values
 pub static AHEAP:Storage<Mutex<Heap<Vec<Data>>>> = Storage::new();
@@ -43,7 +45,30 @@ impl DataArray {
     o
   }
   
+  /// Increase the reference count for this DataArray.
+  pub fn incr(&self) {
+    let aheap = &mut AHEAP.get().lock().unwrap();
+    aheap.incr(self.data_ref); 
+  }
+
+  /// Decrease the reference count for this DataArray.
+  pub fn decr(&self) {
+    let aheap = &mut AHEAP.get().lock().unwrap();
+    aheap.decr(self.data_ref); 
+  }
+
+  /// Create a new DataArray from a JSON string.
+  pub fn from_string(s:&str) -> DataArray {
+    array_from_string(s)
+  }  
+  
+  /// Create a JSON string from a DataArray.
+  pub fn to_string(&self) -> String {
+    array_to_string(self.duplicate())
+  }  
+  
   /// Create a new array from the ```serde_json::Value```.
+  #[cfg(feature="serde_support")]
   pub fn from_json(value:Value) -> DataArray {
     let mut o = DataArray::new();
     
@@ -61,6 +86,7 @@ impl DataArray {
   }
   
   /// Return the array as a ```serde_json::Value```.
+  #[cfg(feature="serde_support")]
   pub fn to_json(&self) -> Value {
     let mut val = Vec::<Value>::new();
     let mut id = 0;
@@ -152,7 +178,9 @@ impl DataArray {
   
   /// Returns the indexed value from the array as an f64
   pub fn get_f64(&self, id:usize) -> f64 {
-    self.get_property(id).float()
+    let d = self.get_property(id);
+    if d.is_int() { return d.int() as f64; }
+    d.float()
   }
 
   /// Returns the indexed value from the array as a DataArray
