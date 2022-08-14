@@ -56,8 +56,9 @@ pub fn array_to_string(o:DataArray) -> String {
 
 /// Create a new DataObject from a JSON string.
 pub fn object_from_string(s:&str) -> DataObject {
+  let s = s.trim();
   let (o, n) = extract_object(s);
-  if n<s.len() { panic!("Error parsing DataObject, extra characters: {}", &s[n..]); }
+  if n<s.len() { panic!("Error parsing DataObject, extra characters: '{}'", &s[n..]); }
   o
 }
 
