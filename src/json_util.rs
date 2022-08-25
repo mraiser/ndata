@@ -198,7 +198,7 @@ fn extract_value(s:&str) -> (Data, usize) {
   }
 }
 
-fn unescape(s:&str) -> String {
+pub fn unescape(s:&str) -> String {
   let s = str::replace(&s, "\\\"", "\"");
 //  let s = str::replace(&s, "\\b", "\b");
 //  let s = str::replace(&s, "\\f", "\f");
@@ -209,7 +209,7 @@ fn unescape(s:&str) -> String {
   s
 }
 
-fn escape(s:&str) -> String {
+pub fn escape(s:&str) -> String {
   let s = str::replace(&s, "\\", "\\\\");
   let s = str::replace(&s, "\"", "\\\"");
 //  let s = str::replace(&s, "\b", "\\b");
