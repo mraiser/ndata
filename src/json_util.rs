@@ -12,9 +12,9 @@ pub fn object_to_string(o:DataObject) -> String {
     s += &escape(&key);
     s += "\":";
     let p = o.get_property(&key);
-    if p.is_string() {
+    if p.is_string() || p.is_bytes(){
       s += "\"";
-      s += &escape(&p.string());
+      s += &escape(&Data::as_string(p));
       s += "\"";
     }
     else if p.is_object() {

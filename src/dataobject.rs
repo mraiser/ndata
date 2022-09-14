@@ -97,7 +97,7 @@ impl DataObject {
     #[cfg(not(feature="serde_support"))]
     return object_from_string(s);
     #[cfg(feature="serde_support")]
-    DataObject::from_json(json!(s))
+    DataObject::from_json(serde_json::from_str(s).unwrap())
  }  
   
   /// Create a JSON string from a DataObject.
@@ -112,7 +112,6 @@ impl DataObject {
   #[cfg(feature="serde_support")]
   pub fn from_json(value:Value) -> DataObject {
     let mut o = DataObject::new();
-    
     for (key, val) in value.as_object().unwrap().iter() {
       if val.is_string(){ o.put_str(key, val.as_str().unwrap()); }
       else if val.is_boolean() { o.put_bool(key, val.as_bool().unwrap()); }
