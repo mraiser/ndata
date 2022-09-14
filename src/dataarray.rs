@@ -1,36 +1,72 @@
-use std::sync::Mutex;
-use state::Storage;
 use std::collections::HashMap;
-#[cfg(feature="serde_support")]
-use serde_json::*;
-
+use std::sync::Mutex;
+use std::alloc::{alloc, Layout};
 use crate::heap::*;
 use crate::data::*;
 use crate::dataobject::*;
 use crate::databytes::*;
+
+#[cfg(feature="serde_support")]
+use serde_json::Value;
+#[cfg(feature="serde_support")]
+use serde_json::json;
+#[cfg(not(feature="serde_support"))]
 use crate::json_util::*;
 
 /// Storage for runtime array values
-pub static AHEAP:Storage<Mutex<Heap<Vec<Data>>>> = Storage::new();
+pub static mut AH:*mut Mutex<Heap<Vec<Data>>> = 0 as *mut Mutex<Heap<Vec<Data>>>;
+
 /// Storage for runtime reference count reductions
-pub static ADROP:Storage<Mutex<Vec<usize>>> = Storage::new();
+pub static mut AD:*mut Mutex<Vec<usize>> = 0 as *mut Mutex<Vec<usize>>;
+
+/// **DO NOT USE**
+///
+/// This function should only be used externally by DataObject
+pub fn aheap() -> &'static mut Mutex<Heap<Vec<Data>>> {
+  unsafe { &mut *AH }
+}
+
+fn adrop() -> &'static mut Mutex<Vec<usize>> {
+  unsafe { &mut *AD }
+}
 
 /// Represents an array of type ```ndata.Data```. 
+#[derive(Debug, Default)]
 pub struct DataArray {
   /// The pointer to the array in the array heap.
   pub data_ref: usize,
 }
 
 impl DataArray {
-  /// Initialize global storage of Arrays. Call only once at startup.
-  pub fn init(){
-    AHEAP.set(Mutex::new(Heap::new()));
-    ADROP.set(Mutex::new(Vec::new()));
+  /// Initialize global storage of arrays. Call only once at startup.
+  pub fn init() -> (usize, usize){
+    let ptr1;
+    let ptr2;
+    unsafe {
+      let layout = Layout::new::<Mutex<Heap<Vec<Data>>>>();
+      ptr1 = alloc(layout);
+      *(ptr1 as *mut Mutex<Heap<Vec<Data>>>) = Mutex::new(Heap::new());
+      let layout = Layout::new::<Mutex<Vec<usize>>>();
+      ptr2 = alloc(layout);
+      *(ptr2 as *mut Mutex<Vec<usize>>) = Mutex::new(Vec::new());
+    }
+    let q = ptr1 as usize;
+    let r = ptr2 as usize;
+    DataArray::mirror(q, r);
+    (q, r)
+  }
+  
+  /// Mirror global storage of arrays from another process. Call only once at startup.
+  pub fn mirror(q:usize, r:usize){
+    unsafe { 
+      AH = q as *mut Mutex<Heap<Vec<Data>>>; 
+      AD = r as *mut Mutex<Vec<usize>>;
+    }
   }
   
   /// Create a new (empty) array.
   pub fn new() -> DataArray {
-    let data_ref = &mut AHEAP.get().lock().unwrap().push(Vec::<Data>::new());
+    let data_ref = &mut aheap().lock().unwrap().push(Vec::<Data>::new());
     return DataArray {
       data_ref: *data_ref,
     };
@@ -41,30 +77,36 @@ impl DataArray {
     let o = DataArray{
       data_ref: data_ref,
     };
-    let _x = &mut AHEAP.get().lock().unwrap().incr(data_ref);
+    let _x = &mut aheap().lock().unwrap().incr(data_ref);
     o
   }
   
   /// Increase the reference count for this DataArray.
   pub fn incr(&self) {
-    let aheap = &mut AHEAP.get().lock().unwrap();
+    let aheap = &mut aheap().lock().unwrap();
     aheap.incr(self.data_ref); 
   }
 
   /// Decrease the reference count for this DataArray.
   pub fn decr(&self) {
-    let aheap = &mut AHEAP.get().lock().unwrap();
+    let aheap = &mut aheap().lock().unwrap();
     aheap.decr(self.data_ref); 
   }
 
   /// Create a new DataArray from a JSON string.
   pub fn from_string(s:&str) -> DataArray {
-    array_from_string(s)
+    #[cfg(not(feature="serde_support"))]
+    return array_from_string(s);
+    #[cfg(feature="serde_support")]
+    DataArray::from_json(json!(s))
   }  
   
   /// Create a JSON string from a DataArray.
   pub fn to_string(&self) -> String {
-    array_to_string(self.duplicate())
+    #[cfg(not(feature="serde_support"))]
+    return array_to_string(self.duplicate());
+    #[cfg(feature="serde_support")]
+    self.to_json().to_string()
   }  
   
   /// Create a new array from the ```serde_json::Value```.
@@ -109,7 +151,7 @@ impl DataArray {
     let o = DataArray{
       data_ref: self.data_ref,
     };
-    let _x = &mut AHEAP.get().lock().unwrap().incr(self.data_ref);
+    let _x = &mut aheap().lock().unwrap().incr(self.data_ref);
     o
   }
   
@@ -148,14 +190,14 @@ impl DataArray {
 
   /// Returns the length of the array.
   pub fn len(&self) -> usize {
-    let heap = &mut AHEAP.get().lock().unwrap();
+    let heap = &mut aheap().lock().unwrap();
     let vec = heap.get(self.data_ref);
     vec.len()
   }
   
   /// Returns the indexed value from the array
   pub fn get_property(&self, id:usize) -> Data {
-    let heap = &mut AHEAP.get().lock().unwrap();
+    let heap = &mut aheap().lock().unwrap();
     let vec = heap.get(self.data_ref);
     let data = vec.get_mut(id).unwrap();
     data.clone()
@@ -208,16 +250,16 @@ impl DataArray {
   /// Append the given value to the end of the array
   pub fn push_property(&mut self, data:Data) {
     if let Data::DObject(i) = &data {
-      OHEAP.get().lock().unwrap().incr(*i);
+      let _x = &mut oheap().lock().unwrap().incr(*i);
     }
     else if let Data::DBytes(i) = &data {
-      BHEAP.get().lock().unwrap().incr(*i);
+      bheap().lock().unwrap().incr(*i);
     }
     else if let Data::DArray(i) = &data {
-      AHEAP.get().lock().unwrap().incr(*i); 
+      aheap().lock().unwrap().incr(*i); 
     }
   
-    let aheap = &mut AHEAP.get().lock().unwrap();
+    let aheap = &mut aheap().lock().unwrap();
     let vec = aheap.get(self.data_ref);
     vec.push(data);
   }
@@ -266,7 +308,7 @@ impl DataArray {
   
   /// Remove the indexed value from the array
   pub fn remove_property(&mut self, id:usize) {
-    let aheap = &mut AHEAP.get().lock().unwrap();
+    let aheap = &mut aheap().lock().unwrap();
     let vec = aheap.get(self.data_ref);
     let old = vec.remove(id);
     if let Data::DObject(i) = &old {
@@ -324,7 +366,7 @@ impl DataArray {
   
   /// Returns this array as a ```Vec<Data>```. 
   pub fn objects(&self) -> Vec<Data> {
-    let heap = &mut AHEAP.get().lock().unwrap();
+    let heap = &mut aheap().lock().unwrap();
     let map = heap.get(self.data_ref);
     let mut vec = Vec::<Data>::new();
     for v in map {
@@ -335,15 +377,15 @@ impl DataArray {
   
   /// Prints the arrays currently stored in the heap
   pub fn print_heap() {
-    println!("array {:?}", &AHEAP.get().lock().unwrap());
+    println!("array {:?}", &aheap().lock().unwrap());
   }
   
   /// Perform garbage collection. Arrays will not be removed from the heap until
   /// ```DataArray::gc()``` is called.
   pub fn gc() {
-    let oheap = &mut OHEAP.get().lock().unwrap();
-    let aheap = &mut AHEAP.get().lock().unwrap();
-    let adrop = &mut ADROP.get().lock().unwrap();
+    let oheap = &mut &mut oheap().lock().unwrap();
+    let aheap = &mut aheap().lock().unwrap();
+    let adrop = &mut adrop().lock().unwrap();
     let mut i = adrop.len();
     while i>0 {
       i = i - 1;
@@ -357,7 +399,7 @@ impl DataArray {
 /// ```DataArray::gc()``` is called.
 impl Drop for DataArray {
   fn drop(&mut self) {
-    ADROP.get().lock().unwrap().push(self.data_ref);
+    adrop().lock().unwrap().push(self.data_ref);
   }
 }
 

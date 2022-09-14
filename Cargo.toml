@@ -14,7 +14,6 @@ serde_support = ["serde_json"]
 
 [dependencies]
 serde_json = { version = "1.0.83", optional = true }
-state="0.5.3"
 
 [lib]
 name = "ndata"
