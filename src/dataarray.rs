@@ -98,7 +98,7 @@ impl DataArray {
     #[cfg(not(feature="serde_support"))]
     return array_from_string(s);
     #[cfg(feature="serde_support")]
-    DataArray::from_json(json!(s))
+    DataArray::from_json(serde_json::from_str(s).unwrap())
   }  
   
   /// Create a JSON string from a DataArray.
