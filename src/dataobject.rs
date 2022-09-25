@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::alloc::{alloc, Layout};
 use crate::heap::*;
 use crate::data::*;
 use crate::dataarray::*;
 use crate::databytes::*;
+use crate::sharedmutex::*;
 
 #[cfg(feature="serde_support")]
 use serde_json::Value;
@@ -14,19 +14,20 @@ use serde_json::json;
 use crate::json_util::*;
 
 /// Storage for runtime object values
-pub static mut OH:*mut Mutex<Heap<HashMap<String,Data>>> = 0 as *mut Mutex<Heap<HashMap<String,Data>>>;
+static mut OH:SharedMutex<Heap<HashMap<String,Data>>> = SharedMutex::mirror(0,0);
+
 /// Storage for runtime reference count reductions
-pub static mut OD:*mut Mutex<Vec<usize>> = 0 as *mut Mutex<Vec<usize>>;
+static mut OD:SharedMutex<Vec<usize>> = SharedMutex::mirror(0,0);
 
 /// **DO NOT USE**
 ///
 /// This function should only be used externally by DataArray
-pub fn oheap() -> &'static mut Mutex<Heap<HashMap<String,Data>>> {
-  unsafe { &mut *OH }
+pub fn oheap() -> &'static mut SharedMutex<Heap<HashMap<String,Data>>> {
+  unsafe { &mut OH }
 }
 
-fn odrop() -> &'static mut Mutex<Vec<usize>> {
-  unsafe { &mut *OD }
+fn odrop() -> &'static mut SharedMutex<Vec<usize>> {
+  unsafe { &mut OD }
 }
 
 /// Represents a map of type ```<String, ndata.Data>```. 
@@ -38,34 +39,27 @@ pub struct DataObject {
 
 impl DataObject {
   /// Initialize global storage of objects. Call only once at startup.
-  pub fn init() -> (usize, usize){
-    let ptr1;
-    let ptr2;
+  pub fn init() -> ((usize, usize),(usize, usize)){
     unsafe {
-      let layout = Layout::new::<Mutex<Heap<HashMap<String,Data>>>>();
-      ptr1 = alloc(layout);
-      *(ptr1 as *mut Mutex<Heap<HashMap<String,Data>>>) = Mutex::new(Heap::new());
-      let layout = Layout::new::<Mutex<Vec<usize>>>();
-      ptr2 = alloc(layout);
-      *(ptr2 as *mut Mutex<Vec<usize>>) = Mutex::new(Vec::new());
+      OH = SharedMutex::new();
+      OD = SharedMutex::new();
+      let q = OH.share();
+      let r = OD.share();
+      (q, r)
     }
-    let q = ptr1 as usize;
-    let r = ptr2 as usize;
-    DataObject::mirror(q, r);
-    (q, r)
   }
   
   /// Mirror global storage of objects from another process. Call only once at startup.
-  pub fn mirror(q:usize, r:usize){
+  pub fn mirror(q:(usize, usize), r:(usize, usize)){
     unsafe { 
-      OH = q as *mut Mutex<Heap<HashMap<String,Data>>>; 
-      OD = r as *mut Mutex<Vec<usize>>;
+      OH = SharedMutex::mirror(q.0, q.1);
+      OD = SharedMutex::mirror(r.0, r.1);
     }
   }
   
   /// Create a new (empty) object.
   pub fn new() -> DataObject {
-    let data_ref = &mut oheap().lock().unwrap().push(HashMap::<String,Data>::new());
+    let data_ref = &mut oheap().lock().push(HashMap::<String,Data>::new());
     return DataObject {
       data_ref: *data_ref,
     };
@@ -76,19 +70,19 @@ impl DataObject {
     let o = DataObject{
       data_ref: data_ref,
     };
-    let _x = &mut oheap().lock().unwrap().incr(data_ref);
+    let _x = &mut oheap().lock().incr(data_ref);
     o
   }
   
   /// Increase the reference count for this DataObject.
   pub fn incr(&self) {
-    let oheap = &mut oheap().lock().unwrap();
+    let oheap = &mut oheap().lock();
     oheap.incr(self.data_ref); 
   }
 
   /// Decrease the reference count for this DataObject.
   pub fn decr(&self) {
-    let oheap = &mut oheap().lock().unwrap();
+    let oheap = &mut oheap().lock();
     oheap.decr(self.data_ref); 
   }
 
@@ -147,7 +141,7 @@ impl DataObject {
     let o = DataObject{
       data_ref: self.data_ref,
     };
-    let _x = &mut oheap().lock().unwrap().incr(self.data_ref);
+    let _x = &mut oheap().lock().incr(self.data_ref);
     o
   }
   
@@ -184,7 +178,7 @@ impl DataObject {
   
   /// Returns ```true``` if this object contains the given key.
   pub fn has(&self, key:&str) -> bool {
-    let heap = &mut oheap().lock().unwrap();
+    let heap = &mut oheap().lock();
     let map = heap.get(self.data_ref);
     map.contains_key(key)
   }
@@ -200,7 +194,7 @@ impl DataObject {
   
   /// Returns the stored value for the given key.
   pub fn get_property(&self, key:&str) -> Data {
-    let heap = &mut oheap().lock().unwrap();
+    let heap = &mut oheap().lock();
     let map = heap.get(self.data_ref);
     let data = map.get(key);
     if data.is_none() { panic!("Object {:?} does not have key {}", map, key); }
@@ -246,7 +240,7 @@ impl DataObject {
   
   /// Remove the value from the object for the given key.
   pub fn remove_property(&mut self, key:&str) {
-    let oheap = &mut oheap().lock().unwrap();
+    let oheap = &mut oheap().lock();
     let map = oheap.get(self.data_ref);
     if let Some(old) = map.remove(key){
       if let Data::DObject(i) = &old {
@@ -270,19 +264,19 @@ impl DataObject {
   /// Set the given value for the given key.
   pub fn set_property(&mut self, key:&str, data:Data) {
     if let Data::DObject(i) = &data {
-      let oheap = &mut oheap().lock().unwrap();
+      let oheap = &mut oheap().lock();
       oheap.incr(*i); 
     }
     else if let Data::DArray(i) = &data {
-      let aheap = &mut aheap().lock().unwrap();
+      let aheap = &mut aheap().lock();
       aheap.incr(*i);
     }
     else if let Data::DBytes(i) = &data {
-      let bheap = &mut bheap().lock().unwrap();
+      let bheap = &mut bheap().lock();
       bheap.incr(*i);
     }
     
-    let oheap = &mut oheap().lock().unwrap();
+    let oheap = &mut oheap().lock();
     let map = oheap.get(self.data_ref);
     if let Some(old) = map.insert(key.to_string(),data){
       if let Data::DObject(i) = &old {
@@ -386,7 +380,7 @@ impl DataObject {
   
   /// Returns the key value pairs in this object as a ```Vec<String, Data>```. 
   pub fn objects(&self) -> Vec<(String, Data)> {
-    let heap = &mut oheap().lock().unwrap();
+    let heap = &mut oheap().lock();
     let map = heap.get(self.data_ref);
     let mut vec = Vec::<(String, Data)>::new();
     for (k,v) in map {
@@ -397,15 +391,15 @@ impl DataObject {
   
   /// Prints the objects currently stored in the heap
   pub fn print_heap() {
-    println!("object {:?}", &mut oheap().lock().unwrap());
+    println!("object {:?}", &mut oheap().lock());
   }
   
   /// Perform garbage collection. Objects will not be removed from the heap until
   /// ```DataObject::gc()``` is called.
   pub fn gc() {
-    let oheap = &mut oheap().lock().unwrap();
-    let aheap = &mut aheap().lock().unwrap();
-    let odrop = &mut odrop().lock().unwrap();
+    let oheap = &mut oheap().lock();
+    let aheap = &mut aheap().lock();
+    let odrop = &mut odrop().lock();
     let mut i = odrop.len();
     while i>0 {
       i = i - 1;
@@ -419,7 +413,7 @@ impl DataObject {
 /// ```DataObject::gc()``` is called.
 impl Drop for DataObject {
   fn drop(&mut self) {
-    let _x = &mut odrop().lock().unwrap().push(self.data_ref);
+    let _x = &mut odrop().lock().push(self.data_ref);
   }
 }
 

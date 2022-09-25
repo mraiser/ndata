@@ -20,18 +20,19 @@ pub mod dataobject;
 pub mod dataarray;
 pub mod databytes;
 pub mod json_util;
+pub mod sharedmutex;
 
 use crate::dataobject::*;
 use crate::dataarray::*;
 use crate::databytes::*;
 
 /// Initialize global storage of data. Call only once at startup.
-pub fn init() -> ((usize,usize),(usize,usize),(usize,usize)) {
+pub fn init() -> (((usize,usize),(usize,usize)),((usize,usize),(usize,usize)),((usize,usize),(usize,usize))) {
   (DataObject::init(), DataArray::init(), DataBytes::init())
 }
 
 /// Mirror global storage of data from another process. Call only once at startup.
-pub fn mirror(data_ref:((usize,usize),(usize,usize),(usize,usize))) {
+pub fn mirror(data_ref:(((usize,usize),(usize,usize)),((usize,usize),(usize,usize)),((usize,usize),(usize,usize)))) {
   DataObject::mirror(data_ref.0.0, data_ref.0.1);
   DataArray::mirror(data_ref.1.0, data_ref.1.1);
   DataBytes::mirror(data_ref.2.0, data_ref.2.1);
