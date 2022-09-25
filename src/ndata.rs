@@ -19,8 +19,10 @@ pub mod data;
 pub mod dataobject;
 pub mod dataarray;
 pub mod databytes;
-pub mod json_util;
 pub mod sharedmutex;
+
+#[cfg(not(feature="serde_support"))]
+pub mod json_util;
 
 use crate::dataobject::*;
 use crate::dataarray::*;

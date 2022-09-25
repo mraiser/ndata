@@ -87,18 +87,18 @@ impl DataObject {
 
   /// Create a new DataObject from a JSON string.
   pub fn from_string(s:&str) -> DataObject {
+    #[cfg(feature="serde_support")]
+    return DataObject::from_json(serde_json::from_str(s).unwrap());
     #[cfg(not(feature="serde_support"))]
     return object_from_string(s);
-    #[cfg(feature="serde_support")]
-    DataObject::from_json(serde_json::from_str(s).unwrap())
  }  
   
   /// Create a JSON string from a DataObject.
   pub fn to_string(&self) -> String {
+    #[cfg(feature="serde_support")]
+    return self.to_json().to_string();
     #[cfg(not(feature="serde_support"))]
     return object_to_string(self.duplicate());
-    #[cfg(feature="serde_support")]
-    self.to_json().to_string()
   }  
   
   /// Create a new object from the ```serde_json::Value```.
