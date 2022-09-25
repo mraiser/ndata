@@ -12,7 +12,7 @@ use std::thread::yield_now;
 
 #[derive(Debug, Default)]
 pub struct SharedMutex<T> {
-  pub is_acquired: usize,
+  is_acquired: usize,
   data: usize,
   phantom: PhantomData<T>,
 }
