@@ -3,10 +3,13 @@
 
 use std::alloc::Layout;
 use std::alloc::alloc;
+use std::alloc::dealloc;
 use std::marker::PhantomData;
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::ops::{Deref, DerefMut};
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::hint::spin_loop;
 use std::thread::yield_now;
 
@@ -45,6 +48,13 @@ impl<T> SharedMutex<T> {
   
   pub fn share(&self) -> (usize, usize) {
     (self.is_acquired, self.data)
+  }
+    
+  pub fn terminate(&self) {
+    unsafe {
+      dealloc(self.is_acquired as *mut u8, Layout::new::<AtomicBool>());
+      dealloc(self.data as *mut u8, Layout::new::<T>());
+    }
   }
     
   pub fn lock(&self) -> SharedMutexGuard<'_, T> {
