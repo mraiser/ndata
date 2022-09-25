@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::alloc::{alloc, Layout};
 use crate::heap::*;
 use crate::data::*;
 use crate::dataarray::*;

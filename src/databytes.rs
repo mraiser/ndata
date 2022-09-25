@@ -1,4 +1,3 @@
-use std::alloc::{alloc, Layout};
 use crate::heap::*;
 use crate::sharedmutex::*;
 
