@@ -187,6 +187,78 @@ impl DataArray {
     vec.len()
   }
   
+  /// Returns the index of a Data in the array
+  pub fn index_of(&self, b: Data) -> i64 {
+    let heap = &mut aheap().lock();
+    let vec = heap.get(self.data_ref);
+    let mut i = 0;
+    let n = vec.len();
+    while i<n {
+      let d = vec.get(i).unwrap();
+      if Data::equals(d.clone(),b.clone()) { return i as i64; }
+      i = i + 1;
+    }
+    -1
+  }
+  
+  /// Push data if not already in array
+  pub fn push_unique(&self, b: Data) -> bool {
+    {
+      let heap = &mut aheap().lock();
+      let vec = heap.get(self.data_ref);
+      let mut i = 0;
+      let n = vec.len();
+      while i<n {
+        let d = vec.get(i).unwrap();
+        if Data::equals(d.clone(),b.clone()) { return false; }
+        i = i + 1;
+      }
+      vec.push(b.clone());
+    }
+    if let Data::DObject(i) = &b {
+      let _x = &mut oheap().lock().incr(*i);
+    }
+    else if let Data::DBytes(i) = &b {
+      bheap().lock().incr(*i);
+    }
+    else if let Data::DArray(i) = &b {
+      aheap().lock().incr(*i); 
+    }
+    true
+  }
+  
+  /// Returns the index of a Data in the array
+  pub fn remove_data(&self, b: Data) -> bool {
+    let heap = &mut aheap().lock();
+    let vec = heap.get(self.data_ref);
+    let mut i = 0;
+    let n = vec.len();
+    while i<n {
+      let d = vec.get(i).unwrap();
+      if Data::equals(d.clone(),b.clone()) { 
+        let old = vec.remove(i);
+        if let Data::DObject(i) = &old {
+          let _x = DataObject {
+            data_ref: *i,
+          };
+        }
+        else if let Data::DArray(i) = &old {
+          let _x = DataArray {
+            data_ref: *i,
+          };
+        }
+        else if let Data::DBytes(i) = &old {
+          let _x = DataBytes {
+            data_ref: *i,
+          };
+        }
+        return true;
+      }
+      i = i + 1;
+    }
+    false
+  }
+  
   /// Returns the indexed value from the array
   pub fn get_property(&self, id:usize) -> Data {
     let heap = &mut aheap().lock();
