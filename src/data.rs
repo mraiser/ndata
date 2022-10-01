@@ -191,9 +191,9 @@ impl Data {
     else if a.is_int() { if b.is_int() { return a.int() == b.int(); } }
     else if a.is_string() { if b.is_string() { return a.string() == b.string(); } }
     else if a.is_boolean() { if b.is_boolean() { return a.boolean() == b.boolean(); } }
-    else if a.is_object() { if b.is_object() { return a.object().data_ref == b.object().data_ref; } }
-    else if a.is_array() { if b.is_array() { return a.array().data_ref == b.array().data_ref; } }
-    else if a.is_bytes() { if b.is_bytes() { return a.bytes().data_ref == b.bytes().data_ref; } }
+    else if let Data::DObject(i) = a { if let Data::DObject(j) = b { return i == j; } }
+    else if let Data::DArray(i) = a { if let Data::DArray(j) = b { return i == j; } }
+    else if let Data::DBytes(i) = a { if let Data::DBytes(j) = b { return i == j; } }
     else if a.is_null() { return b.is_null(); }
     false
   }

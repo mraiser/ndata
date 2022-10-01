@@ -56,6 +56,11 @@ impl<T: std::fmt::Debug> Heap<T> {
       b.count = c-1;
     }
   }
+  
+  /// List the keys to the data on the heap
+  pub fn keys(&self) -> Vec<usize> {
+    self.data.keys()
+  }
 }
 
 

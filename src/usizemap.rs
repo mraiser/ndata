@@ -46,6 +46,20 @@ impl<T: std::fmt::Debug> UsizeMap<T> {
   pub fn len(&self) -> usize {
     self.data.len() - self.empty.len()
   }
+
+  /// List the keys to the data in this map
+  pub fn keys(&self) -> Vec<usize> {
+    let mut v = Vec::new();
+    let n = self.data.len();
+    let mut i = 0;
+    while i<n {
+      if !self.empty.contains(&(i as usize)) {
+        v.push(i as usize);
+      }
+      i += 1;
+    }
+    v
+  }
 }
 
 impl<T> Index<usize> for UsizeMap<T> {
