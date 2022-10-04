@@ -53,6 +53,35 @@ impl DataBytes {
     };
   }
   
+  /// Create a new byte buffer from a Vec<u8>.
+  pub fn from_bytes(buf:&Vec<u8>) -> DataBytes {
+    let data_ref = &mut bheap().lock().push(buf.to_vec());
+    return DataBytes {
+      data_ref: *data_ref,
+    };
+  }
+  
+  /// Returns the underlying vec of bytes in the array
+  pub fn get_data(&self) -> Vec<u8> {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    vec.to_owned()
+  }
+  
+  /// Sets the underlying vec of bytes in the array
+  pub fn set_data(&self, buf:&Vec<u8>) {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    vec.clone_from_slice(buf);
+  }
+  
+  /// Get the length of the underlying byte buffer
+  pub fn len(&self) -> usize {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    vec.len()
+  }
+  
   /// Get a reference to the byte buffer from the heap
   pub fn get(data_ref: usize) -> DataBytes {
     let o = DataBytes{
