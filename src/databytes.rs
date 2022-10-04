@@ -72,6 +72,7 @@ impl DataBytes {
   pub fn set_data(&self, buf:&Vec<u8>) {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
+    vec.resize(buf.len(), 0);
     vec.clone_from_slice(buf);
   }
   
