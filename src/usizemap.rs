@@ -33,7 +33,14 @@ impl<T: std::fmt::Debug> UsizeMap<T> {
   
   /// Return a mutable reference to the stored value with the given key.
   pub fn get_mut(&mut self, i:usize) -> Option<&mut T> {
-    self.data[i].as_mut()
+    let x = self.data.get_mut(i);
+    if x.is_some(){
+      let x = x.unwrap();
+      if x.is_some(){
+        return x.as_mut();
+      }
+    }
+    None
   } 
   
   /// Remove the stored value with the given key.
