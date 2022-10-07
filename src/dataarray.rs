@@ -368,7 +368,74 @@ impl DataArray {
     self.push_property(Data::DBytes(a.data_ref));
   }
   
-  // FIXME - add insert/set_...(index, value) function for all types
+  /// Replace the indexed value in the array
+  pub fn set_property(&mut self, id:usize, data:Data) {
+    if let Data::DObject(i) = &data {
+      let _x = &mut oheap().lock().incr(*i);
+    }
+    else if let Data::DBytes(i) = &data {
+      bheap().lock().incr(*i);
+    }
+    else if let Data::DArray(i) = &data {
+      aheap().lock().incr(*i); 
+    }
+  
+    let aheap = &mut aheap().lock();
+    let vec = aheap.get(self.data_ref);
+    let old = vec[id].clone();
+    vec[id] = data;
+    
+    if let Data::DObject(i) = &old {
+      let _x = DataObject {
+        data_ref: *i,
+      };
+    }
+    else if let Data::DArray(i) = &old {
+      let _x = DataArray {
+        data_ref: *i,
+      };
+    }
+    else if let Data::DBytes(i) = &old {
+      let _x = DataBytes {
+        data_ref: *i,
+      };
+    }
+  }
+  
+  /// Replace the indexed value in the array with the given ```String```.
+  pub fn put_str(&mut self, id:usize, val:&str) {
+    self.set_property(id, Data::DString(val.to_string()));
+  }
+  
+  /// Replace the indexed value in the array with the given ```bool```.
+  pub fn put_bool(&mut self, id:usize, val:bool) {
+    self.set_property(id, Data::DBoolean(val));
+  }
+  
+  /// Replace the indexed value in the array with the given ```i64```.
+  pub fn put_i64(&mut self, id:usize, val:i64) {
+    self.set_property(id, Data::DInt(val));
+  }
+  
+  /// Replace the indexed value in the array with the given ```f64```.
+  pub fn put_float(&mut self, id:usize, val:f64) {
+    self.set_property(id, Data::DFloat(val));
+  }
+
+  /// Replace the indexed value in the array with the given ```DataObject```.
+  pub fn put_object(&mut self, id:usize, o:DataObject) {
+    self.set_property(id, Data::DObject(o.data_ref));
+  }
+  
+  /// Replace the indexed value in the array with the given ```DataArray```.
+  pub fn put_array(&mut self, id:usize, a:DataArray) {
+    self.set_property(id, Data::DArray(a.data_ref));
+  }
+  
+  /// Replace the indexed value in the array with the given ```DataBytes```.
+  pub fn put_bytes(&mut self, id:usize, a:DataBytes) {
+    self.set_property(id, Data::DBytes(a.data_ref));
+  }
   
   /// Remove the indexed value from the array
   pub fn remove_property(&mut self, id:usize) {

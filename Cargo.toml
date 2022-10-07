@@ -1,6 +1,6 @@
 [package]
 name = "ndata"
-version = "0.2.11"
+version = "0.2.12"
 edition = "2021"
 license = "MIT"
 readme = "README.md"
