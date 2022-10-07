@@ -35,6 +35,13 @@ impl<T: std::fmt::Debug> Heap<T> {
     &mut self.data.get_mut(index).unwrap().data
   }
 
+  /// Return the value for the given data reference if it exists.
+  pub fn try_get(&mut self, index:usize) -> Option<&mut T> {
+    let x = self.data.get_mut(index);
+    if x.is_none() { return None }
+    Some(&mut x.unwrap().data)
+  }
+
   /// Return the given instance's reference count.
   pub fn count(&mut self, index:usize) -> usize {
     self.data[index].count
