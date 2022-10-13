@@ -38,7 +38,7 @@ pub struct DataArray {
 
 impl DataArray {
   /// Initialize global storage of arrays. Call only once at startup.
-  pub fn init() -> ((usize, usize), (usize, usize)){
+  pub fn init() -> ((u64, u64), (u64, u64)){
     unsafe{
       AH = SharedMutex::new();
       AD = SharedMutex::new();
@@ -49,7 +49,7 @@ impl DataArray {
   }
   
   /// Mirror global storage of arrays from another process. Call only once at startup.
-  pub fn mirror(q:(usize, usize), r:(usize, usize)){
+  pub fn mirror(q:(u64, u64), r:(u64, u64)){
     unsafe { 
       AH = SharedMutex::mirror(q.0, q.1);
       AD = SharedMutex::mirror(r.0, r.1);

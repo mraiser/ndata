@@ -27,7 +27,7 @@ pub struct DataBytes {
 
 impl DataBytes {
   /// Initialize global storage of byte buffers. Call only once at startup.
-  pub fn init() -> ((usize, usize), (usize, usize)){
+  pub fn init() -> ((u64, u64), (u64, u64)){
     unsafe{
       BH = SharedMutex::new();
       BD = SharedMutex::new();
@@ -38,7 +38,7 @@ impl DataBytes {
   }
   
   /// Mirror global storage of arrays from another process. Call only once at startup.
-  pub fn mirror(q:(usize, usize), r:(usize, usize)){
+  pub fn mirror(q:(u64, u64), r:(u64, u64)){
     unsafe { 
       BH = SharedMutex::mirror(q.0, q.1);
       BD = SharedMutex::mirror(r.0, r.1);

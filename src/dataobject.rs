@@ -38,7 +38,7 @@ pub struct DataObject {
 
 impl DataObject {
   /// Initialize global storage of objects. Call only once at startup.
-  pub fn init() -> ((usize, usize),(usize, usize)){
+  pub fn init() -> ((u64, u64),(u64, u64)){
     unsafe {
       OH = SharedMutex::new();
       OD = SharedMutex::new();
@@ -49,7 +49,7 @@ impl DataObject {
   }
   
   /// Mirror global storage of objects from another process. Call only once at startup.
-  pub fn mirror(q:(usize, usize), r:(usize, usize)){
+  pub fn mirror(q:(u64, u64), r:(u64, u64)){
     unsafe { 
       OH = SharedMutex::mirror(q.0, q.1);
       OD = SharedMutex::mirror(r.0, r.1);

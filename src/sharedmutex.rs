@@ -13,10 +13,15 @@ use std::ops::DerefMut;
 use std::hint::spin_loop;
 use std::thread::yield_now;
 
+#[cfg(feature="debug_mutex")]
+use std::time::Instant;
+#[cfg(feature="debug_mutex")]
+use backtrace::Backtrace;
+
 #[derive(Debug, Default)]
 pub struct SharedMutex<T> {
-  is_acquired: usize,
-  data: usize,
+  is_acquired: u64,
+  data: u64,
   phantom: PhantomData<T>,
 }
 
@@ -32,13 +37,13 @@ impl<T> SharedMutex<T> {
     }
       
     SharedMutex {
-      is_acquired: ptr1 as usize,
-      data: ptr2 as usize,
+      is_acquired: ptr1 as u64,
+      data: ptr2 as u64,
       phantom: PhantomData,
     }
   }
 
-  pub const fn mirror(q:usize, r:usize) -> SharedMutex<T> {
+  pub const fn mirror(q:u64, r:u64) -> SharedMutex<T> {
     SharedMutex {
       is_acquired: q,
       data: r,
@@ -46,7 +51,7 @@ impl<T> SharedMutex<T> {
     }
   }
   
-  pub fn share(&self) -> (usize, usize) {
+  pub fn share(&self) -> (u64, u64) {
     (self.is_acquired, self.data)
   }
     
@@ -58,10 +63,23 @@ impl<T> SharedMutex<T> {
   }
     
   pub fn lock(&self) -> SharedMutexGuard<'_, T> {
+    #[cfg(feature="debug_mutex")]
+    let mut start = Instant::now();
     unsafe { 
       while (*(self.is_acquired as *mut AtomicBool)).swap(true, Ordering::AcqRel) {
         spin_loop();
         yield_now();
+
+        #[cfg(feature="debug_mutex")]
+        if start.elapsed().as_secs() > 40 {
+          println!("UNUSUALLY LONG WAIT FOR SHAREDMUTEX");
+          
+          let bt = Backtrace::new();
+          println!("{:?}", bt);
+          
+          println!("UNUSUALLY LONG WAIT FOR SHAREDMUTEX");
+          start = Instant::now();
+        }
       }
     }
     SharedMutexGuard { mutex: &self }
