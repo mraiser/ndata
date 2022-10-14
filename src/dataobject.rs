@@ -13,10 +13,10 @@ use serde_json::json;
 use crate::json_util::*;
 
 /// Storage for runtime object values
-static mut OH:SharedMutex<Heap<HashMap<String,Data>>> = SharedMutex::mirror(0,0);
+static mut OH:SharedMutex<Heap<HashMap<String,Data>>> = SharedMutex::new();
 
 /// Storage for runtime reference count reductions
-static mut OD:SharedMutex<Vec<usize>> = SharedMutex::mirror(0,0);
+static mut OD:SharedMutex<Vec<usize>> = SharedMutex::new();
 
 /// **DO NOT USE**
 ///
@@ -38,10 +38,18 @@ pub struct DataObject {
 
 impl DataObject {
   /// Initialize global storage of objects. Call only once at startup.
+  #[cfg(not(feature="reload"))]
+  pub fn init(){
+    unsafe {
+      OH.set(Heap::new());
+      OD.set(Vec::new());
+    }
+  }
+  #[cfg(feature="reload")]
   pub fn init() -> ((u64, u64),(u64, u64)){
     unsafe {
-      OH = SharedMutex::new();
-      OD = SharedMutex::new();
+      OH.init();
+      OD.init();
       let q = OH.share();
       let r = OD.share();
       (q, r)
@@ -49,6 +57,7 @@ impl DataObject {
   }
   
   /// Mirror global storage of objects from another process. Call only once at startup.
+  #[cfg(feature="reload")]
   pub fn mirror(q:(u64, u64), r:(u64, u64)){
     unsafe { 
       OH = SharedMutex::mirror(q.0, q.1);

@@ -1,6 +1,6 @@
 [package]
 name = "ndata"
-version = "0.2.15"
+version = "0.2.16"
 edition = "2021"
 license = "MIT"
 readme = "README.md"
@@ -12,6 +12,7 @@ repository = "https://github.com/mraiser/ndata"
 [features]
 serde_support = ["serde_json"]
 debug_mutex = ["backtrace"]
+reload = []
 
 [dependencies]
 serde_json = { version = "1.0.83", optional = true }

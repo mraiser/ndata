@@ -2,10 +2,10 @@ use crate::heap::*;
 use crate::sharedmutex::*;
 
 /// Storage for runtime byte buffer values
-static mut BH:SharedMutex<Heap<Vec<u8>>> = SharedMutex::mirror(0, 0);
+static mut BH:SharedMutex<Heap<Vec<u8>>> = SharedMutex::new();
 
 /// Storage for runtime reference count reductions
-static mut BD:SharedMutex<Vec<usize>> = SharedMutex::mirror(0, 0);
+static mut BD:SharedMutex<Vec<usize>> = SharedMutex::new();
 
 /// **DO NOT USE**
 ///
@@ -27,10 +27,18 @@ pub struct DataBytes {
 
 impl DataBytes {
   /// Initialize global storage of byte buffers. Call only once at startup.
+  #[cfg(not(feature="reload"))]
+  pub fn init(){
+    unsafe {
+      BH.set(Heap::new());
+      BD.set(Vec::new());
+    }
+  }
+  #[cfg(feature="reload")]
   pub fn init() -> ((u64, u64), (u64, u64)){
     unsafe{
-      BH = SharedMutex::new();
-      BD = SharedMutex::new();
+      BH.init();
+      BD.init();
       let q = BH.share();
       let r = BD.share();
       (q, r)
@@ -38,6 +46,7 @@ impl DataBytes {
   }
   
   /// Mirror global storage of arrays from another process. Call only once at startup.
+  #[cfg(feature="reload")]
   pub fn mirror(q:(u64, u64), r:(u64, u64)){
     unsafe { 
       BH = SharedMutex::mirror(q.0, q.1);

@@ -28,14 +28,26 @@ use crate::dataobject::*;
 use crate::dataarray::*;
 use crate::databytes::*;
 
+#[derive(Debug, Default, Copy, Clone)]
+pub struct NDataConfig{
+  #[cfg(feature="reload")]
+  data: (((u64,u64),(u64,u64)),((u64,u64),(u64,u64)),((u64,u64),(u64,u64))),
+  #[cfg(not(feature="reload"))]
+  #[allow(dead_code)]
+  data: ((),(),()),
+}
+
 /// Initialize global storage of data. Call only once at startup.
-pub fn init() -> (((u64,u64),(u64,u64)),((u64,u64),(u64,u64)),((u64,u64),(u64,u64))) {
-  (DataObject::init(), DataArray::init(), DataBytes::init())
+pub fn init() -> NDataConfig {
+  NDataConfig{
+    data: (DataObject::init(), DataArray::init(), DataBytes::init()),
+  }
 }
 
 /// Mirror global storage of data from another process. Call only once at startup.
-pub fn mirror(data_ref:(((u64,u64),(u64,u64)),((u64,u64),(u64,u64)),((u64,u64),(u64,u64)))) {
-  DataObject::mirror(data_ref.0.0, data_ref.0.1);
-  DataArray::mirror(data_ref.1.0, data_ref.1.1);
-  DataBytes::mirror(data_ref.2.0, data_ref.2.1);
+#[cfg(feature="reload")]
+pub fn mirror(data_ref:NDataConfig) {
+  DataObject::mirror(data_ref.data.0.0, data_ref.data.0.1);
+  DataArray::mirror(data_ref.data.1.0, data_ref.data.1.1);
+  DataBytes::mirror(data_ref.data.2.0, data_ref.data.2.1);
 }

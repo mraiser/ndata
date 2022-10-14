@@ -13,10 +13,10 @@ use serde_json::json;
 use crate::json_util::*;
 
 /// Storage for runtime array values
-static mut AH:SharedMutex<Heap<Vec<Data>>> = SharedMutex::mirror(0, 0);
+static mut AH:SharedMutex<Heap<Vec<Data>>> = SharedMutex::new();
 
 /// Storage for runtime reference count reductions
-static mut AD:SharedMutex<Vec<usize>> = SharedMutex::mirror(0, 0);
+static mut AD:SharedMutex<Vec<usize>> = SharedMutex::new();
 
 /// **DO NOT USE**
 ///
@@ -38,10 +38,18 @@ pub struct DataArray {
 
 impl DataArray {
   /// Initialize global storage of arrays. Call only once at startup.
+  #[cfg(not(feature="reload"))]
+  pub fn init(){
+    unsafe {
+      AH.set(Heap::new());
+      AD.set(Vec::new());
+    }
+  }
+  #[cfg(feature="reload")]
   pub fn init() -> ((u64, u64), (u64, u64)){
     unsafe{
-      AH = SharedMutex::new();
-      AD = SharedMutex::new();
+      AH.init();
+      AD.init();
       let q = AH.share();
       let r = AD.share();
       (q, r)
@@ -49,6 +57,7 @@ impl DataArray {
   }
   
   /// Mirror global storage of arrays from another process. Call only once at startup.
+  #[cfg(feature="reload")]
   pub fn mirror(q:(u64, u64), r:(u64, u64)){
     unsafe { 
       AH = SharedMutex::mirror(q.0, q.1);
