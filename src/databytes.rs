@@ -27,14 +27,14 @@ pub struct DataBytes {
 
 impl DataBytes {
   /// Initialize global storage of byte buffers. Call only once at startup.
-  #[cfg(not(feature="reload"))]
+  #[cfg(not(feature="mirror"))]
   pub fn init(){
     unsafe {
       BH.set(Heap::new());
       BD.set(Vec::new());
     }
   }
-  #[cfg(feature="reload")]
+  #[cfg(feature="mirror")]
   pub fn init() -> ((u64, u64), (u64, u64)){
     unsafe{
       BH.init();
@@ -46,7 +46,7 @@ impl DataBytes {
   }
   
   /// Mirror global storage of arrays from another process. Call only once at startup.
-  #[cfg(feature="reload")]
+  #[cfg(feature="mirror")]
   pub fn mirror(q:(u64, u64), r:(u64, u64)){
     unsafe { 
       BH = SharedMutex::mirror(q.0, q.1);

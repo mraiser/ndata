@@ -1,3 +1,6 @@
+#[cfg(feature="no_std_support")]
+use hashbrown::hash_map::HashMap;
+#[cfg(not(feature="no_std_support"))]
 use std::collections::HashMap;
 use crate::heap::*;
 use crate::data::*;
@@ -38,14 +41,14 @@ pub struct DataArray {
 
 impl DataArray {
   /// Initialize global storage of arrays. Call only once at startup.
-  #[cfg(not(feature="reload"))]
+  #[cfg(not(feature="mirror"))]
   pub fn init(){
     unsafe {
       AH.set(Heap::new());
       AD.set(Vec::new());
     }
   }
-  #[cfg(feature="reload")]
+  #[cfg(feature="mirror")]
   pub fn init() -> ((u64, u64), (u64, u64)){
     unsafe{
       AH.init();
@@ -57,7 +60,7 @@ impl DataArray {
   }
   
   /// Mirror global storage of arrays from another process. Call only once at startup.
-  #[cfg(feature="reload")]
+  #[cfg(feature="mirror")]
   pub fn mirror(q:(u64, u64), r:(u64, u64)){
     unsafe { 
       AH = SharedMutex::mirror(q.0, q.1);

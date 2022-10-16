@@ -30,9 +30,9 @@ use crate::databytes::*;
 
 #[derive(Debug, Default, Copy, Clone)]
 pub struct NDataConfig{
-  #[cfg(feature="reload")]
+  #[cfg(feature="mirror")]
   data: (((u64,u64),(u64,u64)),((u64,u64),(u64,u64)),((u64,u64),(u64,u64))),
-  #[cfg(not(feature="reload"))]
+  #[cfg(not(feature="mirror"))]
   #[allow(dead_code)]
   data: ((),(),()),
 }
@@ -45,7 +45,7 @@ pub fn init() -> NDataConfig {
 }
 
 /// Mirror global storage of data from another process. Call only once at startup.
-#[cfg(feature="reload")]
+#[cfg(feature="mirror")]
 pub fn mirror(data_ref:NDataConfig) {
   DataObject::mirror(data_ref.data.0.0, data_ref.data.0.1);
   DataArray::mirror(data_ref.data.1.0, data_ref.data.1.1);

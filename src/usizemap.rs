@@ -1,6 +1,6 @@
-use std::ops::Index;
-use std::mem;
-use std::fmt;
+use core::ops::Index;
+use core::mem;
+use core::fmt;
 
 /// A map of type ```<usize, T>``` where the keys are generated and reused by the map.
 pub struct UsizeMap<T> {
