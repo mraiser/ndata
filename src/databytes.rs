@@ -34,9 +34,10 @@ impl DataStream {
   
    /// Create a new byte stream from a Vec<u8>.
   pub fn from_bytes(buf:Vec<u8>) -> DataStream {
+    let len = buf.len();
     DataStream {
       data: buf,
-      len: 0,  // NOTE: Value should be zero (unset) or fixed (unchanging) value. MAY explicitly set len ONCE, maybe panic if try to set twice?
+      len: len,
       read_open: true,
       write_open: true,
     }
@@ -46,7 +47,7 @@ impl DataStream {
   pub fn deep_copy(&self) -> DataStream {
     DataStream {
       data: self.data.to_owned(),
-      len: self.len,  // NOTE: Value should be zero (unset) or fixed (unchanging) value. MAY explicitly set len ONCE, maybe panic if try to set twice?
+      len: self.len,
       read_open: self.read_open,
       write_open: self.write_open,
     }
@@ -149,8 +150,10 @@ impl DataBytes {
   pub fn set_data(&self, buf:&Vec<u8>) {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
-    vec.data.resize(buf.len(), 0); // FIXME - Is this necessary?
+    let len = buf.len();
+    vec.data.resize(len, 0); // FIXME - Is this necessary?
     vec.data.clone_from_slice(buf);
+    vec.len = len;
   }
   
   /// Get the number of bytes currently in the underlying byte buffer
