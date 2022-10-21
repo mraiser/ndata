@@ -1,5 +1,5 @@
-// Thanks and credit to Mikhail Panfilov
-// https://mnwa.medium.com/building-a-stupid-mutex-in-the-rust-d55886538889
+/// Thanks and credit to Mikhail Panfilov
+/// https://mnwa.medium.com/building-a-stupid-mutex-in-the-rust-d55886538889
 
 use core::sync::atomic::AtomicBool;
 use core::sync::atomic::Ordering;
@@ -25,22 +25,26 @@ use std::time::Instant;
 #[cfg(feature="debug_mutex")]
 use backtrace::Backtrace;
 
+/// A simple mutex that can be accessed globally. If "mirror" feature is enabled the mutex can be shared across partitions.
 #[derive(Debug, Default)]
 pub struct SharedMutex<T> {
+  /// Indicates whether the mutex is acquired (locked)
   #[cfg(not(feature="mirror"))]
   is_acquired: AtomicBool,
-  #[cfg(not(feature="mirror"))]
-  data: Option<UnsafeCell<T>>,
-  
   #[cfg(feature="mirror")]
   is_acquired: u64,
+  /// The underlying object this mutex is locking
+  #[cfg(not(feature="mirror"))]
+  data: Option<UnsafeCell<T>>,
   #[cfg(feature="mirror")]
   data: u64,
+  /// Required only when "mirror" feature is enabled
   #[cfg(feature="mirror")]
   phantom: PhantomData<T>,
 }
 
 impl<T> SharedMutex<T> {
+  /// Instantiate new mutex with no underlying object to lock
   pub const fn new() -> SharedMutex<T> {
     SharedMutex {
       #[cfg(not(feature="mirror"))]
@@ -57,11 +61,13 @@ impl<T> SharedMutex<T> {
     }
   }
   
+  /// Set the underlying object to lock
   #[cfg(not(feature="mirror"))]
   pub fn set(&mut self, t:T) {
     self.data = Some(UnsafeCell::new(t));
   }
   
+  /// Create a new instance of the declared type
   #[cfg(feature="mirror")]
   pub fn init(&mut self) {
     unsafe {
@@ -72,6 +78,7 @@ impl<T> SharedMutex<T> {
     }
   }
   
+  /// Point to an existing mutex
   #[cfg(feature="mirror")]
   pub const fn mirror(q:u64, r:u64) -> SharedMutex<T> {
     SharedMutex {
@@ -81,11 +88,13 @@ impl<T> SharedMutex<T> {
     }
   }
   
+  /// Allow this mutex to be mirrored
   #[cfg(feature="mirror")]
   pub fn share(&self) -> (u64, u64) {
     (self.is_acquired, self.data)
   }
   
+  /// Deallocate shared underlying instance and lock
   #[cfg(feature="mirror")]
   pub fn terminate(&self) {
     unsafe {
@@ -93,7 +102,8 @@ impl<T> SharedMutex<T> {
       dealloc(self.data as *mut u8, Layout::new::<T>());
     }
   }
-    
+  
+  /// Lock this mutex
   fn do_lock(&self) -> bool {
     #[cfg(feature="mirror")]
     unsafe { return (*(self.is_acquired as *mut AtomicBool)).swap(true, Ordering::AcqRel); }
@@ -101,6 +111,7 @@ impl<T> SharedMutex<T> {
     self.is_acquired.swap(true, Ordering::AcqRel)
   }
   
+  /// Lock this mutex
   pub fn lock(&self) -> SharedMutexGuard<'_, T> {
     #[cfg(feature="debug_mutex")]
     let mut start = Instant::now();
@@ -122,6 +133,7 @@ impl<T> SharedMutex<T> {
     SharedMutexGuard { mutex: &self }
   }
   
+  /// Release the lock on this mutex
   fn release(&self) {
     #[cfg(feature="mirror")]
     unsafe { (*(self.is_acquired as *mut AtomicBool)).store(false, Ordering::Release); }
@@ -130,11 +142,13 @@ impl<T> SharedMutex<T> {
   }
 }
 
+/// Protect the underlying locked object
 #[derive(Debug)]
 pub struct SharedMutexGuard<'a, T> {
   pub mutex: &'a SharedMutex<T>,
 }
 
+/// Get the underlying locked object
 impl<T> Deref for SharedMutexGuard<'_, T> {
   type Target = T;
   fn deref(&self) -> &Self::Target {
@@ -148,6 +162,7 @@ impl<T> Deref for SharedMutexGuard<'_, T> {
   }
 }
 
+/// Get the underlying locked object as mutable
 impl<T> DerefMut for SharedMutexGuard<'_, T> {
   fn deref_mut(&mut self) -> &mut Self::Target {
     unsafe { 
@@ -160,6 +175,7 @@ impl<T> DerefMut for SharedMutexGuard<'_, T> {
   }
 }
 
+/// Drop the mutex guard
 impl<T> Drop for SharedMutexGuard<'_, T> {
   fn drop(&mut self) {
     self.mutex.release()

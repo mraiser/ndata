@@ -1,16 +1,62 @@
+use std::cmp;
 use crate::heap::*;
 use crate::sharedmutex::*;
 
 /// Storage for runtime byte buffer values
-static mut BH:SharedMutex<Heap<Vec<u8>>> = SharedMutex::new();
+static mut BH:SharedMutex<Heap<DataStream>> = SharedMutex::new();
 
 /// Storage for runtime reference count reductions
 static mut BD:SharedMutex<Vec<usize>> = SharedMutex::new();
 
+/// Implements a stream of bytes
+#[derive(Debug, Default)]
+pub struct DataStream {
+  /// Raw data currently held in stream
+  data: Vec<u8>,
+  /// Length of data to be sent in this stream. Value should be zero (unset) or fixed (unchanging) value.
+  len: usize,
+  /// Indicates whether the current stream is open to reading
+  read_open: bool,
+  /// Indicates whether the current stream is open to writing
+  write_open: bool,
+}
+
+impl DataStream {
+  /// Create a new (empty) byte stream.
+  pub fn new() -> Self {
+    DataStream {
+      data: Vec::new(),
+      len: 0,
+      read_open: true,
+      write_open: true,
+    }
+  }
+  
+   /// Create a new byte stream from a Vec<u8>.
+  pub fn from_bytes(buf:Vec<u8>) -> DataStream {
+    DataStream {
+      data: buf,
+      len: 0,  // NOTE: Value should be zero (unset) or fixed (unchanging) value. MAY explicitly set len ONCE, maybe panic if try to set twice?
+      read_open: true,
+      write_open: true,
+    }
+  }
+  
+  /// Return a deep copy of the data stream
+  pub fn deep_copy(&self) -> DataStream {
+    DataStream {
+      data: self.data.to_owned(),
+      len: self.len,  // NOTE: Value should be zero (unset) or fixed (unchanging) value. MAY explicitly set len ONCE, maybe panic if try to set twice?
+      read_open: self.read_open,
+      write_open: self.write_open,
+    }
+  }  
+}
+
 /// **DO NOT USE**
 ///
 /// This function should only be used externally by DataArray and DataObject
-pub fn bheap() -> &'static mut SharedMutex<Heap<Vec<u8>>> {
+pub fn bheap() -> &'static mut SharedMutex<Heap<DataStream>> {
   unsafe { &mut BH }
 }
 
@@ -56,7 +102,7 @@ impl DataBytes {
   
   /// Create a new (empty) byte buffer.
   pub fn new() -> DataBytes {
-    let data_ref = &mut bheap().lock().push(Vec::<u8>::new());
+    let data_ref = &mut bheap().lock().push(DataStream::new());
     return DataBytes {
       data_ref: *data_ref,
     };
@@ -64,32 +110,96 @@ impl DataBytes {
   
   /// Create a new byte buffer from a Vec<u8>.
   pub fn from_bytes(buf:&Vec<u8>) -> DataBytes {
-    let data_ref = &mut bheap().lock().push(buf.to_vec());
+    let data_ref = &mut bheap().lock().push(DataStream::from_bytes(buf.to_vec()));
     return DataBytes {
       data_ref: *data_ref,
     };
   }
   
-  /// Returns the underlying vec of bytes in the array
+  /// Returns a copy of the underlying vec of bytes in the array
   pub fn get_data(&self) -> Vec<u8> {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
-    vec.to_owned()
+    vec.data.to_owned()
+  }
+  
+  /// Appends the given slice to the end of the bytes in the array
+  pub fn write(&self, buf:&[u8]) {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    if !vec.write_open || !vec.read_open { panic!("Attempt to write to closed data stream"); }
+    vec.data.extend_from_slice(buf);
+  }
+  
+  /// Removes and returns up to the requested number of bytes from the array
+  pub fn read(&self, n:usize) -> Vec<u8> {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    if !vec.read_open { panic!("Attempt to read from closed data stream"); }
+    let n = cmp::min(n, vec.data.len());
+    let d = vec.data[0..n].to_vec();
+    vec.data.drain(0..n);
+    if !vec.write_open && vec.data.len() == 0 {
+      vec.read_open = false;
+    }
+    d
   }
   
   /// Sets the underlying vec of bytes in the array
   pub fn set_data(&self, buf:&Vec<u8>) {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
-    vec.resize(buf.len(), 0);
-    vec.clone_from_slice(buf);
+    vec.data.resize(buf.len(), 0); // FIXME - Is this necessary?
+    vec.data.clone_from_slice(buf);
   }
   
-  /// Get the length of the underlying byte buffer
-  pub fn len(&self) -> usize {
+  /// Get the number of bytes currently in the underlying byte buffer
+  pub fn current_len(&self) -> usize {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
-    vec.len()
+    vec.data.len()
+  }
+  
+  /// Get the declared total number of bytes in the stream
+  pub fn stream_len(&self) -> usize {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    vec.len
+  }
+  
+  /// Set the declared total number of bytes in the stream
+  pub fn set_stream_len(&self, len: usize) {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    vec.len = len;
+  }
+  
+  /// Return true if the underlying data stream is open for writing
+  pub fn is_write_open(&self) -> bool {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    vec.write_open
+  }
+  
+  /// Return true if the underlying data stream is open for reading
+  pub fn is_read_open(&self) -> bool {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    vec.read_open
+  }
+  
+  /// Close the underlying data stream to further writing
+  pub fn close_write(&self) {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    vec.write_open = false;
+  }
+  
+  /// Close the underlying data stream to further reading
+  pub fn close_read(&self) {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    vec.read_open = false;
   }
   
   /// Get a reference to the byte buffer from the heap
@@ -126,7 +236,7 @@ impl DataBytes {
   pub fn deep_copy(&self) -> DataBytes {
     let heap = &mut bheap().lock();
     let bytes = heap.get(self.data_ref);
-    let vec = bytes.to_owned();
+    let vec = bytes.deep_copy();
     let data_ref = &mut bheap().lock().push(vec);
     return DataBytes {
       data_ref: *data_ref,
@@ -137,7 +247,7 @@ impl DataBytes {
   pub fn to_hex_string(&self) -> String {
     let heap = &mut bheap().lock();
     let bytes = heap.get(self.data_ref);
-    let strs: Vec<String> = bytes.iter()
+    let strs: Vec<String> = bytes.data.iter()
                                  .map(|b| format!("{:02X}", b))
                                  .collect();
     strs.join(" ")    
