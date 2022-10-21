@@ -172,13 +172,13 @@ impl DataObject {
     let mut o = DataObject::new();
     for (key,v) in self.objects() {
       if v.is_object() {
-        o.put_object(&key, self.get_object(&key).deep_copy());
+        o.put_object(&key, v.object().deep_copy());
       }
       else if v.is_array() {
-        o.put_array(&key, self.get_array(&key).deep_copy());
+        o.put_array(&key, v.array().deep_copy());
       }
       else if v.is_bytes() {
-        o.put_bytes(&key, self.get_bytes(&key).deep_copy());
+        o.put_bytes(&key, v.bytes().deep_copy());
       }
       else {
         o.set_property(&key, v.clone());
