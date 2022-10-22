@@ -39,7 +39,7 @@ impl DataStream {
       data: buf,
       len: len,
       read_open: true,
-      write_open: true,
+      write_open: false,
     }
   }
   
@@ -154,6 +154,7 @@ impl DataBytes {
     vec.data.resize(len, 0); // FIXME - Is this necessary?
     vec.data.clone_from_slice(buf);
     vec.len = len;
+    vec.write_open = false;
   }
   
   /// Get the number of bytes currently in the underlying byte buffer
