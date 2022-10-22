@@ -19,6 +19,8 @@ pub struct DataStream {
   read_open: bool,
   /// Indicates whether the current stream is open to writing
   write_open: bool,
+  /// Optional MIME type of this stream
+  mime_type: Option<String>,
 }
 
 impl DataStream {
@@ -29,6 +31,7 @@ impl DataStream {
       len: 0,
       read_open: true,
       write_open: true,
+      mime_type: None,
     }
   }
   
@@ -40,6 +43,7 @@ impl DataStream {
       len: len,
       read_open: true,
       write_open: false,
+      mime_type: None,
     }
   }
   
@@ -50,6 +54,7 @@ impl DataStream {
       len: self.len,
       read_open: self.read_open,
       write_open: self.write_open,
+      mime_type: self.mime_type.to_owned(),
     }
   }  
 }
