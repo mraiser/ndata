@@ -211,6 +211,20 @@ impl DataBytes {
     vec.read_open = false;
   }
   
+  /// Set the optional MIME type for this stream
+  pub fn set_mime_type(&self, mime:Option<String>) {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    vec.mime_type = mime;
+  }
+  
+  /// Get the optional MIME type for this stream
+  pub fn get_mime_type(&self) -> Option<String> {
+    let heap = &mut bheap().lock();
+    let vec = heap.get(self.data_ref);
+    vec.mime_type.to_owned()
+  }
+  
   /// Get a reference to the byte buffer from the heap
   pub fn get(data_ref: usize) -> DataBytes {
     let o = DataBytes{
