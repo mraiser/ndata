@@ -2,6 +2,13 @@ use crate::dataobject::*;
 use crate::dataarray::*;
 use crate::databytes::*;
 
+#[cfg(feature="no_std_support")]
+use alloc::string::String;
+#[cfg(feature="no_std_support")]
+use crate::alloc::borrow::ToOwned;
+#[cfg(feature="no_std_support")]
+use crate::alloc::string::ToString;
+
 /// Represents an NData value
 ///
 /// DObject, DArray, and DBytes are considered *instances* and the clone() function will return a reference to the *same* instance.

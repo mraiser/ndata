@@ -1,6 +1,10 @@
 use core::ops::Index;
 use core::mem;
 use core::fmt;
+use core::fmt::Debug;
+
+#[cfg(feature="no_std_support")]
+use alloc::vec::Vec;
 
 /// A map of type ```<usize, T>``` where the keys are generated and reused by the map.
 pub struct UsizeMap<T> {
@@ -10,7 +14,7 @@ pub struct UsizeMap<T> {
   empty: Vec<usize>,
 }
 
-impl<T: std::fmt::Debug> UsizeMap<T> {
+impl<T: Debug> UsizeMap<T> {
   /// Return a new (empty) ```UsizeMap```.
   pub fn new() -> UsizeMap<T> {
     UsizeMap {
@@ -77,7 +81,7 @@ impl<T> Index<usize> for UsizeMap<T> {
   }
 }
 
-impl<T: std::fmt::Debug> fmt::Debug for UsizeMap<T> {
+impl<T: core::fmt::Debug> fmt::Debug for UsizeMap<T> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(f, "count {}, empty {}", self.len(), self.empty.len()).unwrap();
     Ok(())

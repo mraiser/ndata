@@ -6,7 +6,6 @@ use core::sync::atomic::Ordering;
 use core::ops::Deref;
 use core::ops::DerefMut;
 use core::hint::spin_loop;
-//use std::thread::yield_now;
 
 #[cfg(not(feature="mirror"))]
 use core::cell::UnsafeCell;
@@ -24,6 +23,9 @@ use std::marker::PhantomData;
 use std::time::Instant;
 #[cfg(feature="debug_mutex")]
 use backtrace::Backtrace;
+
+use core::fmt::Debug;
+use core::default::Default;
 
 /// A simple mutex that can be accessed globally. If "mirror" feature is enabled the mutex can be shared across partitions.
 #[derive(Debug, Default)]
@@ -108,7 +110,19 @@ impl<T> SharedMutex<T> {
     #[cfg(feature="mirror")]
     unsafe { return (*(self.is_acquired as *mut AtomicBool)).swap(true, Ordering::AcqRel); }
     #[cfg(not(feature="mirror"))]
-    self.is_acquired.swap(true, Ordering::AcqRel)
+    {
+      #[cfg(not(feature="no_std_support"))]
+      return self.is_acquired.swap(true, Ordering::AcqRel);
+      #[cfg(feature="no_std_support")]
+      {
+        let mut x = false;
+        cortex_m::interrupt::free(|_| {
+          x = self.is_acquired.load(Ordering::Acquire);
+          self.is_acquired.store(true, Ordering::Release);
+        });
+        x
+      }
+    }
   }
   
   /// Lock this mutex

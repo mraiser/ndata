@@ -2,6 +2,11 @@ use crate::data::*;
 use crate::dataarray::*;
 use crate::dataobject::*;
 
+#[cfg(feature="no_std_support")]
+use alloc::string::ToString;
+#[cfg(feature="no_std_support")]
+use alloc::string::String;
+
 /// Create a JSON string from a DataObject.
 pub fn object_to_string(o:DataObject) -> String {
   let mut s = "{".to_string();

@@ -1,4 +1,10 @@
 #[cfg(feature="no_std_support")]
+use alloc::vec::Vec;
+#[cfg(feature="no_std_support")]
+use alloc::string::String;
+#[cfg(feature="no_std_support")]
+use crate::alloc::string::ToString;
+#[cfg(feature="no_std_support")]
 use hashbrown::hash_map::HashMap;
 #[cfg(not(feature="no_std_support"))]
 use std::collections::HashMap;
@@ -519,6 +525,7 @@ impl DataArray {
   }
   
   /// Prints the arrays currently stored in the heap
+  #[cfg(not(feature="no_std_support"))]
   pub fn print_heap() {
     println!("array {:?}", &aheap().lock());
   }

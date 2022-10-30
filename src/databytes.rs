@@ -1,6 +1,15 @@
-use std::cmp;
+use core::cmp;
 use crate::heap::*;
 use crate::sharedmutex::*;
+
+#[cfg(feature="no_std_support")]
+use alloc::format;
+#[cfg(feature="no_std_support")]
+use alloc::vec::Vec;
+#[cfg(feature="no_std_support")]
+use alloc::string::String;
+#[cfg(feature="no_std_support")]
+use crate::alloc::borrow::ToOwned;
 
 /// Storage for runtime byte buffer values
 static mut BH:SharedMutex<Heap<DataStream>> = SharedMutex::new();
@@ -277,6 +286,7 @@ impl DataBytes {
   }
   
   /// Prints the byte buffers currently stored in the heap
+  #[cfg(not(feature="no_std_support"))]
   pub fn print_heap() {
     println!("object {:?}", &mut bheap().lock());
   }

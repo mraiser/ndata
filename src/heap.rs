@@ -1,5 +1,8 @@
 use crate::usizemap::*;
 
+#[cfg(feature="no_std_support")]
+use alloc::vec::Vec;
+
 #[derive(Debug)]
 struct Blob<T> {
   data: T,
@@ -12,7 +15,7 @@ pub struct Heap<T> {
   data: UsizeMap<Blob<T>>,
 }
 
-impl<T: std::fmt::Debug> Heap<T> {
+impl<T: core::fmt::Debug> Heap<T> {
   /// Create a new ```Heap``` of type ```T```.
   pub fn new() -> Heap<T> {
     Heap {
