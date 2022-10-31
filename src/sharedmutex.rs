@@ -77,6 +77,7 @@ impl<T> SharedMutex<T> {
       self.is_acquired = alloc(layout) as u64;
       let layout = Layout::new::<T>();
       self.data = alloc(layout)as u64;
+      (*(self.is_acquired as *mut AtomicBool)).store(false, Ordering::Release);
     }
   }
   
