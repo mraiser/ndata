@@ -1,3 +1,4 @@
+extern crate alloc;
 use crate::data::*;
 use crate::dataarray::*;
 use crate::dataobject::*;
@@ -11,7 +12,7 @@ use alloc::string::String;
 pub fn object_to_string(o:DataObject) -> String {
   let mut s = "{".to_string();
   let mut i = 0;
-  for key in o.duplicate().keys(){
+  for key in o.clone().keys(){
     if i>0 { s += "," }
     s += "\"";
     s += &escape(&key);
@@ -39,7 +40,7 @@ pub fn object_to_string(o:DataObject) -> String {
 pub fn array_to_string(o:DataArray) -> String {
   let mut s = "[".to_string();
   let mut i = 0;
-  for p in o.duplicate().objects(){
+  for p in o.clone().objects(){
     if i>0 { s += "," }
     if p.is_string() {
       s += "\"";
@@ -203,7 +204,9 @@ fn extract_value(s:&str) -> (Data, usize) {
   }
 }
 
+/// Unescape the string
 pub fn unescape(s:&str) -> String {
+  // FIXME - Known issues with double-escaped strings
   let s = str::replace(&s, "\\\"", "\"");
 //  let s = str::replace(&s, "\\b", "\b");
 //  let s = str::replace(&s, "\\f", "\f");
@@ -214,7 +217,9 @@ pub fn unescape(s:&str) -> String {
   s
 }
 
+/// Escape the string
 pub fn escape(s:&str) -> String {
+  // FIXME - Known issues with double-escaped strings
   let s = str::replace(&s, "\\", "\\\\");
   let s = str::replace(&s, "\"", "\\\"");
 //  let s = str::replace(&s, "\b", "\\b");

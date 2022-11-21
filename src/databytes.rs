@@ -1,3 +1,4 @@
+extern crate alloc;
 use core::cmp;
 use crate::heap::*;
 use crate::sharedmutex::*;
@@ -9,7 +10,7 @@ use alloc::vec::Vec;
 #[cfg(feature="no_std_support")]
 use alloc::string::String;
 #[cfg(feature="no_std_support")]
-use crate::alloc::borrow::ToOwned;
+use alloc::borrow::ToOwned;
 
 /// Storage for runtime byte buffer values
 static mut BH:SharedMutex<Heap<DataStream>> = SharedMutex::new();
@@ -84,6 +85,17 @@ fn bdrop() -> &'static mut SharedMutex<Vec<usize>> {
 pub struct DataBytes {
   /// The pointer to the array in the byte buffer heap.
   pub data_ref: usize,
+}
+
+impl Clone for DataBytes{
+  /// Returns another DataBytes pointing to the same value.
+  fn clone(&self) -> Self {
+    let o = DataBytes{
+      data_ref: self.data_ref,
+    };
+    let _x = &mut bheap().lock().incr(self.data_ref);
+    o
+  }
 }
 
 impl DataBytes {
@@ -256,12 +268,9 @@ impl DataBytes {
   }
 
   /// Returns a new ```DataBytes``` that points to the same underlying byte buffer.
+  #[deprecated(since="0.3.0", note="please use `clone` instead")]
   pub fn duplicate(&self) -> DataBytes {
-    let o = DataBytes{
-      data_ref: self.data_ref,
-    };
-    let _x = &mut bheap().lock().incr(self.data_ref);
-    o
+    self.clone()
   }
   
   /// Returns a new ```DataBytes``` that points to a copy of the underlying byte buffer.

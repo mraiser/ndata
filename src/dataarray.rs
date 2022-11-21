@@ -1,9 +1,10 @@
+extern crate alloc;
 #[cfg(feature="no_std_support")]
 use alloc::vec::Vec;
 #[cfg(feature="no_std_support")]
 use alloc::string::String;
 #[cfg(feature="no_std_support")]
-use crate::alloc::string::ToString;
+use alloc::string::ToString;
 #[cfg(feature="no_std_support")]
 use hashbrown::hash_map::HashMap;
 #[cfg(not(feature="no_std_support"))]
@@ -43,6 +44,17 @@ fn adrop() -> &'static mut SharedMutex<Vec<usize>> {
 pub struct DataArray {
   /// The pointer to the array in the array heap.
   pub data_ref: usize,
+}
+
+impl Clone for DataArray{
+  /// Returns another DataArray pointing to the same value.
+  fn clone(&self) -> Self {
+    let o = DataArray{
+      data_ref: self.data_ref,
+    };
+    let _x = &mut aheap().lock().incr(self.data_ref);
+    o
+  }
 }
 
 impl DataArray {
@@ -114,7 +126,7 @@ impl DataArray {
   /// Create a JSON string from a DataArray.
   pub fn to_string(&self) -> String {
     #[cfg(not(feature="serde_support"))]
-    return array_to_string(self.duplicate());
+    return array_to_string(self.clone());
     #[cfg(feature="serde_support")]
     self.to_json().to_string()
   }  
@@ -125,9 +137,9 @@ impl DataArray {
     let mut o = DataArray::new();
     
     for val in value.as_array().unwrap().iter() {
-      if val.is_string(){ o.push_str(val.as_str().unwrap()); }
-      else if val.is_boolean() { o.push_bool(val.as_bool().unwrap()); }
-      else if val.is_i64() { o.push_i64(val.as_i64().unwrap()); }
+      if val.is_string(){ o.push_string(val.as_str().unwrap()); }
+      else if val.is_boolean() { o.push_boolean(val.as_bool().unwrap()); }
+      else if val.is_i64() { o.push_int(val.as_i64().unwrap()); }
       else if val.is_f64() { o.push_float(val.as_f64().unwrap()); }
       else if val.is_object() { o.push_object(DataObject::from_json(val.to_owned())); }
       else if val.is_array() { o.push_array(DataArray::from_json(val.to_owned())); }      
@@ -143,9 +155,9 @@ impl DataArray {
     let mut val = Vec::<Value>::new();
     let mut id = 0;
     for old in self.objects() {
-      if old.is_int() { val.push(json!(self.get_i64(id))); }
-      else if old.is_float() { val.push(json!(self.get_f64(id))); }
-      else if old.is_boolean() { val.push(json!(self.get_bool(id))); }
+      if old.is_int() { val.push(json!(self.get_int(id))); }
+      else if old.is_float() { val.push(json!(self.get_float(id))); }
+      else if old.is_boolean() { val.push(json!(self.get_boolean(id))); }
       else if old.is_string() { val.push(json!(self.get_string(id))); }
       else if old.is_object() { val.push(self.get_object(id).to_json()); }
       else if old.is_array() { val.push(self.get_array(id).to_json()); }
@@ -157,12 +169,9 @@ impl DataArray {
   }
   
   /// Returns a new ```DataArray``` that points to the same underlying array instance.
+  #[deprecated(since="0.3.0", note="please use `clone` instead")]
   pub fn duplicate(&self) -> DataArray {
-    let o = DataArray{
-      data_ref: self.data_ref,
-    };
-    let _x = &mut aheap().lock().incr(self.data_ref);
-    o
+    self.clone()
   }
   
   /// Returns a new ```DataArray``` that points to a new array instance, which contains the 
@@ -291,17 +300,35 @@ impl DataArray {
   }
   
   /// Returns the indexed value from the array as a bool
+  #[deprecated(since="0.3.0", note="please use `get_boolean` instead")]
   pub fn get_bool(&self, id:usize) -> bool {
-    self.get_property(id).boolean()
+    self.get_boolean(id)
   }
   
   /// Returns the indexed value from the array as an i64
+  #[deprecated(since="0.3.0", note="please use `get_int` instead")]
   pub fn get_i64(&self, id:usize) -> i64 {
-    self.get_property(id).int()
+    self.get_int(id)
   }
   
   /// Returns the indexed value from the array as an f64
+  #[deprecated(since="0.3.0", note="please use `get_float` instead")]
   pub fn get_f64(&self, id:usize) -> f64 {
+    self.get_float(id)
+  }
+
+  /// Returns the indexed value from the array as a bool
+  pub fn get_boolean(&self, id:usize) -> bool {
+    self.get_property(id).boolean()
+  }
+
+  /// Returns the indexed value from the array as an i64
+  pub fn get_int(&self, id:usize) -> i64 {
+    self.get_property(id).int()
+  }
+
+  /// Returns the indexed value from the array as an f64
+  pub fn get_float(&self, id:usize) -> f64 {
     let d = self.get_property(id);
     if d.is_int() { return d.int() as f64; }
     d.float()
@@ -347,20 +374,38 @@ impl DataArray {
   }
 
   /// Append the given ```String``` to the end of the array
+  #[deprecated(since="0.3.0", note="please use `push_string` instead")]
   pub fn push_str(&mut self, val:&str) {
-    self.push_property(Data::DString(val.to_string()));
+    self.push_string(val);
   }
   
   /// Append the given ```bool``` to the end of the array
+  #[deprecated(since="0.3.0", note="please use `push_boolean` instead")]
   pub fn push_bool(&mut self, val:bool) {
-    self.push_property(Data::DBoolean(val));
+    self.push_boolean(val);
   }
   
   /// Append the given ```i64``` to the end of the array
+  #[deprecated(since="0.3.0", note="please use `push_int` instead")]
   pub fn push_i64(&mut self, val:i64) {
-    self.push_property(Data::DInt(val));
+    self.push_int(val);
   }
   
+  /// Append the given ```String``` to the end of the array
+  pub fn push_string(&mut self, val:&str) {
+    self.push_property(Data::DString(val.to_string()));
+  }
+
+  /// Append the given ```bool``` to the end of the array
+  pub fn push_boolean(&mut self, val:bool) {
+    self.push_property(Data::DBoolean(val));
+  }
+
+  /// Append the given ```i64``` to the end of the array
+  pub fn push_int(&mut self, val:i64) {
+    self.push_property(Data::DInt(val));
+  }
+
   /// Append the given ```f64``` to the end of the array
   pub fn push_float(&mut self, val:f64) {
     self.push_property(Data::DFloat(val));
@@ -421,20 +466,38 @@ impl DataArray {
   }
   
   /// Replace the indexed value in the array with the given ```String```.
+  #[deprecated(since="0.3.0", note="please use `put_string` instead")]
   pub fn put_str(&mut self, id:usize, val:&str) {
-    self.set_property(id, Data::DString(val.to_string()));
+    self.put_string(id, val);
   }
   
   /// Replace the indexed value in the array with the given ```bool```.
+  #[deprecated(since="0.3.0", note="please use `put_boolean` instead")]
   pub fn put_bool(&mut self, id:usize, val:bool) {
-    self.set_property(id, Data::DBoolean(val));
+    self.put_boolean(id, val);
   }
   
   /// Replace the indexed value in the array with the given ```i64```.
+  #[deprecated(since="0.3.0", note="please use `put_int` instead")]
   pub fn put_i64(&mut self, id:usize, val:i64) {
-    self.set_property(id, Data::DInt(val));
+    self.put_int(id, val);
   }
   
+  /// Replace the indexed value in the array with the given ```String```.
+  pub fn put_string(&mut self, id:usize, val:&str) {
+    self.set_property(id, Data::DString(val.to_string()));
+  }
+
+  /// Replace the indexed value in the array with the given ```bool```.
+  pub fn put_boolean(&mut self, id:usize, val:bool) {
+    self.set_property(id, Data::DBoolean(val));
+  }
+
+  /// Replace the indexed value in the array with the given ```i64```.
+  pub fn put_int(&mut self, id:usize, val:i64) {
+    self.set_property(id, Data::DInt(val));
+  }
+
   /// Replace the indexed value in the array with the given ```f64```.
   pub fn put_float(&mut self, id:usize, val:f64) {
     self.set_property(id, Data::DFloat(val));

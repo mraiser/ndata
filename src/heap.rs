@@ -1,3 +1,4 @@
+extern crate alloc;
 use crate::usizemap::*;
 
 #[cfg(feature="no_std_support")]

@@ -51,3 +51,12 @@ pub fn mirror(data_ref:NDataConfig) {
   DataArray::mirror(data_ref.data.1.0, data_ref.data.1.1);
   DataBytes::mirror(data_ref.data.2.0, data_ref.data.2.1);
 }
+
+/// Perform garbage collection. Instances will not be removed from the heap until
+/// ```NData::gc()``` is called.
+pub fn gc() {
+  DataObject::gc();
+  DataArray::gc();
+  DataBytes::gc();
+}
+

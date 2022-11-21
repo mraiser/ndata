@@ -1,3 +1,4 @@
+extern crate alloc;
 use crate::dataobject::*;
 use crate::dataarray::*;
 use crate::databytes::*;
@@ -5,9 +6,9 @@ use crate::databytes::*;
 #[cfg(feature="no_std_support")]
 use alloc::string::String;
 #[cfg(feature="no_std_support")]
-use crate::alloc::borrow::ToOwned;
+use alloc::borrow::ToOwned;
 #[cfg(feature="no_std_support")]
-use crate::alloc::string::ToString;
+use alloc::string::ToString;
 
 /// Represents an NData value
 ///
@@ -80,22 +81,24 @@ pub enum Data {
   DNull,
 }
 
-impl Data {
-  /// Returns a copy of the value. 
-  /// 
-  /// Since DObject, DArray, and DBytes are *references* to instances, the resulting Data 
+impl Clone for Data{
+  /// Returns a copy of the value.
+  ///
+  /// Since DObject, DArray, and DBytes are *references* to instances, the resulting Data
   /// will point to the *same* instance as the original.
-  pub fn clone(&self) -> Data {
-    if let Data::DInt(d) = self { return Data::DInt(*d); } 
-    if let Data::DFloat(d) = self { return Data::DFloat(*d); } 
-    if let Data::DBoolean(d) = self { return Data::DBoolean(*d); } 
-    if let Data::DString(d) = self { return Data::DString(d.to_owned()); } 
-    if let Data::DObject(d) = self { return Data::DObject(*d); } 
-    if let Data::DArray(d) = self { return Data::DArray(*d); } 
-    if let Data::DBytes(d) = self { return Data::DBytes(*d); } 
-    Data::DNull 
+  fn clone(&self) -> Self {
+    if let Data::DInt(d) = self { return Data::DInt(*d); }
+    if let Data::DFloat(d) = self { return Data::DFloat(*d); }
+    if let Data::DBoolean(d) = self { return Data::DBoolean(*d); }
+    if let Data::DString(d) = self { return Data::DString(d.to_owned()); }
+    if let Data::DObject(d) = self { return Data::DObject(*d); }
+    if let Data::DArray(d) = self { return Data::DArray(*d); }
+    if let Data::DBytes(d) = self { return Data::DBytes(*d); }
+    Data::DNull
   }
-  
+}
+
+impl Data {
   /// Returns ```true``` if the value is of type ```DInt``` or ```DFloat```.
   pub fn is_number(&self) -> bool {
     self.is_int() || self.is_float()

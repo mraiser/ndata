@@ -1,3 +1,4 @@
+extern crate alloc;
 use core::ops::Index;
 use core::mem;
 use core::fmt;

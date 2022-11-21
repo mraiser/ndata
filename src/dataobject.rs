@@ -1,9 +1,10 @@
+extern crate alloc;
 #[cfg(feature="no_std_support")]
 use alloc::vec::Vec;
 #[cfg(feature="no_std_support")]
 use alloc::string::String;
 #[cfg(feature="no_std_support")]
-use crate::alloc::string::ToString;
+use alloc::string::ToString;
 #[cfg(feature="no_std_support")]
 use hashbrown::hash_map::HashMap;
 #[cfg(not(feature="no_std_support"))]
@@ -43,6 +44,17 @@ fn odrop() -> &'static mut SharedMutex<Vec<usize>> {
 pub struct DataObject {
   /// The pointer to the object in the object heap.
   pub data_ref: usize,
+}
+
+impl Clone for DataObject{
+  /// Returns another DataObject pointing to the same value.
+  fn clone(&self) -> Self {
+    let o = DataObject{
+      data_ref: self.data_ref,
+    };
+    let _x = &mut oheap().lock().incr(self.data_ref);
+    o
+  }
 }
 
 impl DataObject {
@@ -116,7 +128,7 @@ impl DataObject {
     #[cfg(feature="serde_support")]
     return self.to_json().to_string();
     #[cfg(not(feature="serde_support"))]
-    return object_to_string(self.duplicate());
+    return object_to_string(self.clone());
   }  
   
   /// Create a new object from the ```serde_json::Value```.
@@ -124,9 +136,9 @@ impl DataObject {
   pub fn from_json(value:Value) -> DataObject {
     let mut o = DataObject::new();
     for (key, val) in value.as_object().unwrap().iter() {
-      if val.is_string(){ o.put_str(key, val.as_str().unwrap()); }
-      else if val.is_boolean() { o.put_bool(key, val.as_bool().unwrap()); }
-      else if val.is_i64() { o.put_i64(key, val.as_i64().unwrap()); }
+      if val.is_string(){ o.put_string(key, val.as_str().unwrap()); }
+      else if val.is_boolean() { o.put_boolean(key, val.as_bool().unwrap()); }
+      else if val.is_i64() { o.put_int(key, val.as_i64().unwrap()); }
       else if val.is_f64() { o.put_float(key, val.as_f64().unwrap()); }
       else if val.is_object() { o.put_object(key, DataObject::from_json(val.to_owned())); }
       else if val.is_array() { o.put_array(key, DataArray::from_json(val.to_owned())); }      
@@ -141,9 +153,9 @@ impl DataObject {
   pub fn to_json(&self) -> Value {
     let mut val = json!({});
     for (keystr,old) in self.objects() {
-      if old.is_int() { val[keystr] = json!(self.get_i64(&keystr)); }
-      else if old.is_float() { val[keystr] = json!(self.get_f64(&keystr)); }
-      else if old.is_boolean() { val[keystr] = json!(self.get_bool(&keystr)); }
+      if old.is_int() { val[keystr] = json!(self.get_int(&keystr)); }
+      else if old.is_float() { val[keystr] = json!(self.get_float(&keystr)); }
+      else if old.is_boolean() { val[keystr] = json!(self.get_boolean(&keystr)); }
       else if old.is_string() { val[keystr] = json!(self.get_string(&keystr)); }
       else if old.is_object() { val[keystr] = self.get_object(&keystr).to_json(); }
       else if old.is_array() { val[keystr] = self.get_array(&keystr).to_json(); }
@@ -154,12 +166,9 @@ impl DataObject {
   }
   
   /// Returns a new ```DataObject``` that points to the same underlying object instance.
+  #[deprecated(since="0.3.0", note="please use `clone` instead")]
   pub fn duplicate(&self) -> DataObject {
-    let o = DataObject{
-      data_ref: self.data_ref,
-    };
-    let _x = &mut oheap().lock().incr(self.data_ref);
-    o
+    self.clone()
   }
   
   /// Returns a new ```DataObject``` that points to a new object instance, which contains the 
@@ -224,22 +233,40 @@ impl DataObject {
   }
   
   /// Returns the stored value for the given key as a ```bool```.
+  #[deprecated(since="0.3.0", note="please use `get_boolean` instead")]
   pub fn get_bool(&self, key:&str) -> bool {
-    self.get_property(key).boolean()
+    self.get_boolean(key)
   }
   
   /// Returns the stored value for the given key as an ```i64```.
+  #[deprecated(since="0.3.0", note="please use `get_int` instead")]
   pub fn get_i64(&self, key:&str) -> i64 {
-    self.get_property(key).int()
+    self.get_int(key)
   }
   
   /// Returns the stored value for the given key as an ```f64```.
+  #[deprecated(since="0.3.0", note="please use `get_float` instead")]
   pub fn get_f64(&self, key:&str) -> f64 {
+    self.get_float(key)
+  }
+  
+  /// Returns the stored value for the given key as a ```bool```.
+  pub fn get_boolean(&self, key:&str) -> bool {
+    self.get_property(key).boolean()
+  }
+
+  /// Returns the stored value for the given key as an ```i64```.
+  pub fn get_int(&self, key:&str) -> i64 {
+    self.get_property(key).int()
+  }
+
+  /// Returns the stored value for the given key as an ```f64```.
+  pub fn get_float(&self, key:&str) -> f64 {
     let d = self.get_property(key);
     if d.is_int() { return d.int() as f64; }
     d.float()
   }
-  
+
   /// Returns the stored value for the given key as a ```DataObject```.
   pub fn get_object(&self, key:&str) -> DataObject {
     self.get_property(key).object()
@@ -315,20 +342,38 @@ impl DataObject {
   }
   
   /// Set the given ```String``` value for the given key.
+  #[deprecated(since="0.3.0", note="please use `put_string` instead")]
   pub fn put_str(&mut self, key:&str, val:&str) {
-    self.set_property(key,Data::DString(val.to_string()));
+    self.put_string(key,val);
   }
   
   /// Set the given ```bool``` value for the given key.
+  #[deprecated(since="0.3.0", note="please use `put_booolean` instead")]
   pub fn put_bool(&mut self, key:&str, val:bool) {
-    self.set_property(key,Data::DBoolean(val));
+    self.put_boolean(key, val);
   }
   
   /// Set the given ```i64``` value for the given key.
+  #[deprecated(since="0.3.0", note="please use `put_int` instead")]
   pub fn put_i64(&mut self, key:&str, val:i64) {
-    self.set_property(key,Data::DInt(val));
+    self.put_int(key, val);
   }
   
+  /// Set the given ```String``` value for the given key.
+  pub fn put_string(&mut self, key:&str, val:&str) {
+    self.set_property(key,Data::DString(val.to_string()));
+  }
+
+  /// Set the given ```bool``` value for the given key.
+  pub fn put_boolean(&mut self, key:&str, val:bool) {
+    self.set_property(key,Data::DBoolean(val));
+  }
+
+  /// Set the given ```i64``` value for the given key.
+  pub fn put_int(&mut self, key:&str, val:i64) {
+    self.set_property(key,Data::DInt(val));
+  }
+
   /// Set the given ```f64``` value for the given key.
   pub fn put_float(&mut self, key:&str, val:f64) {
     self.set_property(key,Data::DFloat(val));
