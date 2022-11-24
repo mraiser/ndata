@@ -431,6 +431,11 @@ impl DataArray {
     self.push_property(Data::DBytes(a.data_ref));
   }
   
+  /// Append NULL to the end of the array
+  pub fn push_null(&mut self) {
+    self.push_property(Data::DNull);
+  }
+  
   /// Replace the indexed value in the array
   pub fn set_property(&mut self, id:usize, data:Data) {
     if let Data::DObject(i) = &data {
@@ -516,6 +521,11 @@ impl DataArray {
   /// Replace the indexed value in the array with the given ```DataBytes```.
   pub fn put_bytes(&mut self, id:usize, a:DataBytes) {
     self.set_property(id, Data::DBytes(a.data_ref));
+  }
+  
+  /// Replace the indexed value in the array with NULL.
+  pub fn put_null(&mut self, id:usize) {
+    self.set_property(id, Data::DNull);
   }
   
   /// Remove the indexed value from the array
