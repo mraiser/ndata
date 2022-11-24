@@ -454,7 +454,7 @@ impl DataObject {
   /// Prints the objects currently stored in the heap
   #[cfg(not(feature="no_std_support"))]
   pub fn print_heap() {
-    println!("object {:?}", &mut oheap().lock());
+    println!("object {:?}", &mut oheap().lock().keys());
   }
   
   /// Perform garbage collection. Objects will not be removed from the heap until

@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = ["lib"]
+
+[package]
+name = "hot-reload"
+authors = ["mraiser <marc@raiser.us>"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lib = { path = "./lib" }
+hot-lib-reloader = { version = "^0.6", optional = true }
+ndata = { path="../../" }
+
+[features]
+default = []
+reload = ["dep:hot-lib-reloader","ndata/mirror"]
+

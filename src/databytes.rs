@@ -297,7 +297,7 @@ impl DataBytes {
   /// Prints the byte buffers currently stored in the heap
   #[cfg(not(feature="no_std_support"))]
   pub fn print_heap() {
-    println!("object {:?}", &mut bheap().lock());
+    println!("bytes {:?}", &mut bheap().lock().keys());
   }
   
   /// Perform garbage collection. Byte buffers will not be removed from the heap until

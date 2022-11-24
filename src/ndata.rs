@@ -60,3 +60,13 @@ pub fn gc() {
   DataBytes::gc();
 }
 
+/// Prints the objects currently stored in the heap
+#[cfg(not(feature="no_std_support"))]
+pub fn print_heap() {
+  println!("------------ HEAP ------------");
+  DataObject::print_heap();
+  DataArray::print_heap();
+  DataBytes::print_heap();
+  println!("------------------------------");
+}
+

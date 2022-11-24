@@ -600,7 +600,7 @@ impl DataArray {
   /// Prints the arrays currently stored in the heap
   #[cfg(not(feature="no_std_support"))]
   pub fn print_heap() {
-    println!("array {:?}", &aheap().lock());
+    println!("array {:?}", &aheap().lock().keys());
   }
   
   /// Perform garbage collection. Arrays will not be removed from the heap until
