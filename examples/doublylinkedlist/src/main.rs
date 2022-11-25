@@ -105,7 +105,7 @@ impl Node{
   
   fn length(&self) -> usize {
     let last = self.last();
-    last.position()
+    last.position() + 1
   }
   
   fn to_vec(&self) -> Vec<i64> {
