@@ -151,11 +151,12 @@ impl DataBytes {
   }
   
   /// Appends the given slice to the end of the bytes in the array
-  pub fn write(&self, buf:&[u8]) {
+  pub fn write(&self, buf:&[u8]) -> bool {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
-    if !vec.write_open || !vec.read_open { panic!("Attempt to write to closed data stream"); }
+    if !vec.write_open || !vec.read_open { return false }
     vec.data.extend_from_slice(buf);
+    true
   }
   
   /// Removes and returns up to the requested number of bytes from the array
