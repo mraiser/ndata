@@ -549,7 +549,30 @@ impl DataArray {
       };
     }
   }
-  
+
+  /// Pop the indexed value from the array
+  pub fn pop_property(&mut self, id:usize) -> Data {
+    let aheap = &mut aheap().lock();
+    let vec = aheap.get(self.data_ref);
+    let old = vec.remove(id);
+    if let Data::DObject(i) = &old {
+      let _x = DataObject {
+        data_ref: *i,
+      };
+    }
+    else if let Data::DArray(i) = &old {
+      let _x = DataArray {
+        data_ref: *i,
+      };
+    }
+    else if let Data::DBytes(i) = &old {
+      let _x = DataBytes {
+        data_ref: *i,
+      };
+    }
+    old
+  }
+
   /// **DO NOT USE**
   ///
   /// Reduces the reference count for this array by one, as well as the reference counts of any
