@@ -1,13 +1,4 @@
 extern crate alloc;
-#[cfg(feature="no_std_support")]
-use alloc::vec::Vec;
-#[cfg(feature="no_std_support")]
-use alloc::string::String;
-#[cfg(feature="no_std_support")]
-use alloc::string::ToString;
-#[cfg(feature="no_std_support")]
-use hashbrown::hash_map::HashMap;
-#[cfg(not(feature="no_std_support"))]
 use std::collections::HashMap;
 use crate::heap::*;
 use crate::data::*;
@@ -59,18 +50,16 @@ impl Clone for DataObject{
 
 impl DataObject {
   /// Initialize global storage of objects. Call only once at startup.
-  #[cfg(not(feature="mirror"))]
-  pub fn init(){
+  pub fn init() -> ((u64, u64),(u64, u64)){
     unsafe {
       OH.set(Heap::new());
       OD.set(Vec::new());
     }
+    DataObject::share()
   }
-  #[cfg(feature="mirror")]
-  pub fn init() -> ((u64, u64),(u64, u64)){
+  
+  pub fn share() -> ((u64, u64),(u64, u64)){
     unsafe {
-      OH.init();
-      OD.init();
       let q = OH.share();
       let r = OD.share();
       (q, r)
@@ -78,11 +67,10 @@ impl DataObject {
   }
   
   /// Mirror global storage of objects from another process. Call only once at startup.
-  #[cfg(feature="mirror")]
   pub fn mirror(q:(u64, u64), r:(u64, u64)){
-    unsafe { 
-      OH = SharedMutex::mirror(q.0, q.1);
-      OD = SharedMutex::mirror(r.0, r.1);
+    unsafe {
+      OH.mirror(q.0, q.1);
+      OD.mirror(r.0, r.1);
     }
   }
   

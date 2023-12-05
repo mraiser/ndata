@@ -3,15 +3,6 @@ use core::cmp;
 use crate::heap::*;
 use crate::sharedmutex::*;
 
-#[cfg(feature="no_std_support")]
-use alloc::format;
-#[cfg(feature="no_std_support")]
-use alloc::vec::Vec;
-#[cfg(feature="no_std_support")]
-use alloc::string::String;
-#[cfg(feature="no_std_support")]
-use alloc::borrow::ToOwned;
-
 /// Storage for runtime byte buffer values
 static mut BH:SharedMutex<Heap<DataStream>> = SharedMutex::new();
 
@@ -100,18 +91,16 @@ impl Clone for DataBytes{
 
 impl DataBytes {
   /// Initialize global storage of byte buffers. Call only once at startup.
-  #[cfg(not(feature="mirror"))]
-  pub fn init(){
+  pub fn init() -> ((u64, u64),(u64, u64)){
     unsafe {
       BH.set(Heap::new());
       BD.set(Vec::new());
     }
+    DataBytes::share()
   }
-  #[cfg(feature="mirror")]
-  pub fn init() -> ((u64, u64), (u64, u64)){
+  
+  pub fn share() -> ((u64, u64), (u64, u64)){
     unsafe{
-      BH.init();
-      BD.init();
       let q = BH.share();
       let r = BD.share();
       (q, r)
@@ -119,11 +108,10 @@ impl DataBytes {
   }
   
   /// Mirror global storage of arrays from another process. Call only once at startup.
-  #[cfg(feature="mirror")]
   pub fn mirror(q:(u64, u64), r:(u64, u64)){
-    unsafe { 
-      BH = SharedMutex::mirror(q.0, q.1);
-      BD = SharedMutex::mirror(r.0, r.1);
+    unsafe {
+      BH.mirror(q.0, q.1);
+      BD.mirror(r.0, r.1);
     }
   }
   
