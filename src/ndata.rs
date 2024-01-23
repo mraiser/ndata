@@ -33,6 +33,28 @@ pub struct NDataConfig{
   data: (((u64,u64),(u64,u64)),((u64,u64),(u64,u64)),((u64,u64),(u64,u64))),
 }
 
+impl NDataConfig {
+  pub fn to_string(&self) -> String{
+    let (((a, b), (c, d)), ((e, f), (g, h)), ((i, j), (k, l))) = self.data;
+    let v = vec![a,b,c,d,e,f,g,h,i,j,k,l];
+    let mut s = "".to_string();
+    for x in v { s += &format!( "{:016X}", x); }
+    s
+  }
+
+  pub fn from_string(mut s:String) -> Self {
+    let mut x = Vec::new();
+    while s.len()>0 {
+      let a = u64::from_str_radix(&s[..16], 16);
+      x.push(a.unwrap());
+      s = s[16..].to_string();
+    }
+    NDataConfig{
+      data: (((x[0],x[1]),(x[2],x[3])),((x[4],x[5]),(x[6],x[7])),((x[8],x[9]),(x[10],x[11]))),
+    }
+  }
+}
+
 /// Initialize global storage of data. Call only once at startup.
 pub fn init() -> NDataConfig {
   NDataConfig{

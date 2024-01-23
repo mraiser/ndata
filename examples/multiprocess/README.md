@@ -1,0 +1,1 @@
+This example demonstrates that passing values back and forth between separate system processes using NData is not possible.
