@@ -64,10 +64,12 @@ impl DataStream {
 ///
 /// This function should only be used externally by DataArray and DataObject
 pub fn bheap() -> &'static mut SharedMutex<Heap<DataStream>> {
+  #[allow(static_mut_refs)]
   unsafe { &mut BH }
 }
 
 fn bdrop() -> &'static mut SharedMutex<Vec<usize>> {
+  #[allow(static_mut_refs)]
   unsafe { &mut BD }
 }
 

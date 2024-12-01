@@ -23,10 +23,12 @@ static mut AD:SharedMutex<Vec<usize>> = SharedMutex::new();
 ///
 /// This function should only be used externally by DataObject
 pub fn aheap() -> &'static mut SharedMutex<Heap<Vec<Data>>> {
+  #[allow(static_mut_refs)]
   unsafe { &mut AH }
 }
 
 fn adrop() -> &'static mut SharedMutex<Vec<usize>> {
+  #[allow(static_mut_refs)]
   unsafe { &mut AD }
 }
 

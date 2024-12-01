@@ -23,10 +23,12 @@ static mut OD:SharedMutex<Vec<usize>> = SharedMutex::new();
 ///
 /// This function should only be used externally by DataArray
 pub fn oheap() -> &'static mut SharedMutex<Heap<HashMap<String,Data>>> {
+  #[allow(static_mut_refs)]
   unsafe { &mut OH }
 }
 
 fn odrop() -> &'static mut SharedMutex<Vec<usize>> {
+  #[allow(static_mut_refs)]
   unsafe { &mut OD }
 }
 
