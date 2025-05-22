@@ -67,7 +67,7 @@ Once included, initialize the NData system exactly once at startup of your progr
   }
 ```
 
-    Note: If you forget to call init(), the first attempt to use NData’s global storage will panic or fail, because the static heaps are not set.
+**Note: If you forget to call init(), the first attempt to use NData’s global storage will panic or fail, because the static heaps are not set.**
 
 After initialization, you can create and manipulate NData structures. The API revolves around a few core types:
 
