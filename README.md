@@ -113,6 +113,7 @@ The repository includes a number of example programs (under the examples/ folder
 ```
 
 This will compile and execute examples/doublylinkedlist/src/main.rs, which demonstrates using a DataObject to implement a linked list (storing pointers to “next” and “prev” as DataObjects). Similarly, cargo run --example multithreaded will show usage of NData across threads, globals shows using NData as a global state store, and so on. These examples are a great way to see how the API is used in practice.
+
 Code Structure and Architecture
 
 The NData codebase is organized into several modules, each handling a different aspect of the data structure implementation. The main components of the code and their roles are:
