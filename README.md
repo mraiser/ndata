@@ -40,9 +40,12 @@ In short, NData acts as a flexible, GC-enabled data store in Rust, useful for qu
 * Memory management: The library implements its own basic memory management (a heap with manual garbage collection) in pure Rust. It does not use a GC library or external allocator beyond Rust’s default (or alloc in no_std). Reference counting is implemented manually (via atomic counters or indices) rather than using Rc/Arc. This gives fine control over when to free memory (only during explicit gc() calls). The trade-off is that the developer must remember to call NData::gc() periodically – memory won’t be reclaimed otherwise.
 
 Overall, Rust’s ecosystem is the main technology here – NData is delivered as a crates.io package (current version ~0.3.11) and built with Cargo. It is MIT licensed and integrates with typical Rust tooling (documentation on docs.rs, etc.). It is designed to be lightweight and portable, with no mandatory third-party dependencies and full no_std support, making it adaptable to a wide range of Rust projects, including embedded applications.
-Installation and Usage Instructions
 
-Using NData in your project: To use NData as a library, add it as a dependency in your Rust project’s Cargo.toml. For example:
+## Installation and Usage Instructions
+
+Using NData in your project: To use NData as a library, add it as a dependency in your Rust project’s Cargo.toml. 
+
+For example:
 
 ```
   [dependencies]
@@ -58,7 +61,9 @@ To enable optional Serde support:
 
 After adding, run cargo build to fetch and compile the crate.
 
-Once included, initialize the NData system exactly once at startup of your program. Call the function ndata::init() (or NData::init()) before creating or using any NData objects. This sets up the global storage heaps in memory. For example:
+Once included, initialize the NData system exactly once at startup of your program. Call the function ndata::init() (or NData::init()) before creating or using any NData objects. This sets up the global storage heaps in memory. 
+
+For example:
 
 ```
   fn main() {
@@ -79,7 +84,9 @@ After initialization, you can create and manipulate NData structures. The API re
 
 * DataBytes: a byte buffer type.
 
-For example, to create an object you can do let obj = DataObject::new();. You can then insert properties into it. A property is set by providing a Data value. For instance:
+For example, to create an object you can do let obj = DataObject::new();. You can then insert properties into it. A property is set by providing a Data value. 
+
+For instance:
 
 ```
   obj.set_property("name", Data::DString("Alice".into()));
