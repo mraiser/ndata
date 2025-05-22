@@ -35,8 +35,8 @@ impl DataStream {
       mime_type: None,
     }
   }
-  
-   /// Create a new byte stream from a Vec<u8>.
+
+  /// Create a new byte stream from a Vec<u8>.
   pub fn from_bytes(buf:Vec<u8>) -> DataStream {
     let len = buf.len();
     DataStream {
@@ -47,7 +47,7 @@ impl DataStream {
       mime_type: None,
     }
   }
-  
+
   /// Return a deep copy of the data stream
   pub fn deep_copy(&self) -> DataStream {
     DataStream {
@@ -57,7 +57,7 @@ impl DataStream {
       write_open: self.write_open,
       mime_type: self.mime_type.to_owned(),
     }
-  }  
+  }
 }
 
 /// **DO NOT USE**
@@ -93,14 +93,18 @@ impl Clone for DataBytes{
 
 impl DataBytes {
   /// Initialize global storage of byte buffers. Call only once at startup.
+  #[allow(static_mut_refs)]
   pub fn init() -> ((u64, u64),(u64, u64)){
     unsafe {
-      BH.set(Heap::new());
-      BD.set(Vec::new());
+      if !BH.is_initialized() {
+        BH.set(Heap::new());
+        BD.set(Vec::new());
+      }
     }
     DataBytes::share()
   }
-  
+
+  #[allow(static_mut_refs)]
   pub fn share() -> ((u64, u64), (u64, u64)){
     unsafe{
       let q = BH.share();
@@ -108,15 +112,16 @@ impl DataBytes {
       (q, r)
     }
   }
-  
+
   /// Mirror global storage of arrays from another process. Call only once at startup.
+  #[allow(static_mut_refs)]
   pub fn mirror(q:(u64, u64), r:(u64, u64)){
     unsafe {
       BH.mirror(q.0, q.1);
       BD.mirror(r.0, r.1);
     }
   }
-  
+
   /// Create a new (empty) byte buffer.
   pub fn new() -> DataBytes {
     let data_ref = &mut bheap().lock().push(DataStream::new());
@@ -124,7 +129,7 @@ impl DataBytes {
       data_ref: *data_ref,
     };
   }
-  
+
   /// Create a new byte buffer from a Vec<u8>.
   pub fn from_bytes(buf:&Vec<u8>) -> DataBytes {
     let data_ref = &mut bheap().lock().push(DataStream::from_bytes(buf.to_vec()));
@@ -132,14 +137,14 @@ impl DataBytes {
       data_ref: *data_ref,
     };
   }
-  
+
   /// Returns a copy of the underlying vec of bytes in the array
   pub fn get_data(&self) -> Vec<u8> {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
     vec.data.to_owned()
   }
-  
+
   /// Appends the given slice to the end of the bytes in the array
   pub fn write(&self, buf:&[u8]) -> bool {
     let heap = &mut bheap().lock();
@@ -148,7 +153,7 @@ impl DataBytes {
     vec.data.extend_from_slice(buf);
     true
   }
-  
+
   /// Removes and returns up to the requested number of bytes from the array
   pub fn read(&self, n:usize) -> Vec<u8> {
     let heap = &mut bheap().lock();
@@ -162,7 +167,7 @@ impl DataBytes {
     }
     d
   }
-  
+
   /// Sets the underlying vec of bytes in the array
   pub fn set_data(&self, buf:&Vec<u8>) {
     let heap = &mut bheap().lock();
@@ -173,70 +178,70 @@ impl DataBytes {
     vec.len = len;
     vec.write_open = false;
   }
-  
+
   /// Get the number of bytes currently in the underlying byte buffer
   pub fn current_len(&self) -> usize {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
     vec.data.len()
   }
-  
+
   /// Get the declared total number of bytes in the stream
   pub fn stream_len(&self) -> usize {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
     vec.len
   }
-  
+
   /// Set the declared total number of bytes in the stream
   pub fn set_stream_len(&self, len: usize) {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
     vec.len = len;
   }
-  
+
   /// Return true if the underlying data stream is open for writing
   pub fn is_write_open(&self) -> bool {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
     vec.write_open
   }
-  
+
   /// Return true if the underlying data stream is open for reading
   pub fn is_read_open(&self) -> bool {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
     vec.read_open
   }
-  
+
   /// Close the underlying data stream to further writing
   pub fn close_write(&self) {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
     vec.write_open = false;
   }
-  
+
   /// Close the underlying data stream to further reading
   pub fn close_read(&self) {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
     vec.read_open = false;
   }
-  
+
   /// Set the optional MIME type for this stream
   pub fn set_mime_type(&self, mime:Option<String>) {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
     vec.mime_type = mime;
   }
-  
+
   /// Get the optional MIME type for this stream
   pub fn get_mime_type(&self) -> Option<String> {
     let heap = &mut bheap().lock();
     let vec = heap.get(self.data_ref);
     vec.mime_type.to_owned()
   }
-  
+
   /// Get a reference to the byte buffer from the heap
   pub fn get(data_ref: usize) -> DataBytes {
     let o = DataBytes{
@@ -245,17 +250,17 @@ impl DataBytes {
     let _x = &mut bheap().lock().incr(data_ref);
     o
   }
-  
+
   /// Increase the reference count for this DataBytes.
   pub fn incr(&self) {
     let bheap = &mut bheap().lock();
-    bheap.incr(self.data_ref); 
+    bheap.incr(self.data_ref);
   }
 
   /// Decrease the reference count for this DataBytes.
   pub fn decr(&self) {
     let bheap = &mut bheap().lock();
-    bheap.decr(self.data_ref); 
+    bheap.decr(self.data_ref);
   }
 
   /// Returns a new ```DataBytes``` that points to the same underlying byte buffer.
@@ -263,7 +268,7 @@ impl DataBytes {
   pub fn duplicate(&self) -> DataBytes {
     self.clone()
   }
-  
+
   /// Returns a new ```DataBytes``` that points to a copy of the underlying byte buffer.
   pub fn deep_copy(&self) -> DataBytes {
     let heap = &mut bheap().lock();
@@ -274,23 +279,23 @@ impl DataBytes {
       data_ref: *data_ref,
     };
   }
-  
+
   /// Returns the byte buffer as a hexidecimal String.
   pub fn to_hex_string(&self) -> String {
     let heap = &mut bheap().lock();
     let bytes = heap.get(self.data_ref);
     let strs: Vec<String> = bytes.data.iter()
-                                 .map(|b| format!("{:02X}", b))
-                                 .collect();
-    strs.join(" ")    
+    .map(|b| format!("{:02X}", b))
+    .collect();
+    strs.join(" ")
   }
-  
+
   /// Prints the byte buffers currently stored in the heap
   #[cfg(not(feature="no_std_support"))]
   pub fn print_heap() {
     println!("bytes {:?}", &mut bheap().lock().keys());
   }
-  
+
   /// Perform garbage collection. Byte buffers will not be removed from the heap until
   /// ```DataBytes::gc()``` is called.
   pub fn gc() {
@@ -312,4 +317,3 @@ impl Drop for DataBytes {
     bdrop().lock().push(self.data_ref);
   }
 }
-

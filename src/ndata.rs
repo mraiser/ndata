@@ -24,6 +24,14 @@ pub mod sharedmutex;
 #[cfg(not(feature="serde_support"))]
 pub mod json_util;
 
+#[cfg(all(test, not(feature = "serde_support")))]
+mod json_util_tests; // Tells Rust to look for src/json_util_tests.rs
+
+// Re-export the necessary types at the crate root
+pub use data::Data;
+pub use usizemap::UsizeMap;
+//pub use data::Data::DBytes::data_ref;
+
 use crate::dataobject::*;
 use crate::dataarray::*;
 use crate::databytes::*;

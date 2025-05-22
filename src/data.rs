@@ -13,13 +13,14 @@ use alloc::string::ToString;
 /// Represents an NData value
 ///
 /// DObject, DArray, and DBytes are considered *instances* and the clone() function will return a reference to the *same* instance.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Data {
   /// Represents an existing instance of ndata::dataobject::DataObject, where data_ref is the value of the DataObject's data_ref field.
   ///
   /// ```
   /// # use ndata::Data;
   /// # 
+  /// let data_ref: usize = 0;
   /// let d = Data::DObject(data_ref);
   /// ```
   DObject(usize),
@@ -28,6 +29,7 @@ pub enum Data {
   /// ```
   /// # use ndata::Data;
   /// # 
+  /// let data_ref: usize = 0;
   /// let d = Data::DArray(data_ref);
   /// ```
   DArray(usize),
@@ -36,6 +38,7 @@ pub enum Data {
   /// ```
   /// # use ndata::Data;
   /// # 
+  /// let data_ref: usize = 0;
   /// let d = Data::DBytes(data_ref);
   /// ```
   DBytes(usize),
@@ -159,9 +162,9 @@ impl Data {
     if let Data::DBoolean(b) = self { *b } else { panic!("Not a boolean: {:?}/{}", self, Data::as_string(self.clone())); }
   }
 
-  /// Returns the underlying ```String``` value, or panics if not ```DString```.
+  /// Returns the underlying ```String``` value, or if not converts it to ```DString```.
   pub fn string(&self) -> String {
-    if let Data::DString(s) = self { s.to_owned() } else { panic!("Not a string: {:?}/{}", self, Data::as_string(self.clone())); }
+    if let Data::DString(s) = self { s.to_owned() } else { Data::as_string(self.clone()) }
   }
 
   /// Returns a new ```DataObject``` representing the underlying object instance, 
