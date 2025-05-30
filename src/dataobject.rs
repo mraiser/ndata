@@ -111,6 +111,19 @@ impl DataObject {
   }
 
   // --- Serialization / Deserialization ---
+  pub fn try_from_string(s: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    #[cfg(feature = "serde_support")]
+    {
+      let value = serde_json::from_str(s)?;
+      Ok(DataObject::from_json(value))
+    }
+    #[cfg(not(feature = "serde_support"))]
+    {
+      let obj = json_util::object_from_string(s)?;
+      Ok(obj)
+    }
+  }
+
   pub fn from_string(s: &str) -> Self {
     #[cfg(feature = "serde_support")]
     {
@@ -359,7 +372,7 @@ impl DataObject {
     // set_property handles locking and ref counting
     self.set_property(key, Data::DObject(o.data_ref));
     // Prevent drop impl of 'o' from queueing its ref again
-    core::mem::forget(o);
+    //core::mem::forget(o);
   }
   #[deprecated(since = "0.1.2", note = "please use `put_array` instead")]
   pub fn put_list(&mut self, key: &str, a: DataArray) { self.put_array(key, a); }
@@ -368,14 +381,14 @@ impl DataObject {
     // set_property handles locking and ref counting
     self.set_property(key, Data::DArray(a.data_ref));
     // Prevent drop impl of 'a' from queueing its ref again
-    core::mem::forget(a);
+    //core::mem::forget(a);
   }
   /// Sets the value to the provided `DataBytes`. Takes ownership (semantically).
   pub fn put_bytes(&mut self, key: &str, b: DataBytes) {
     // set_property handles locking and ref counting
     self.set_property(key, Data::DBytes(b.data_ref));
     // Prevent drop impl of 'b' from queueing its ref again
-    core::mem::forget(b);
+    //core::mem::forget(b);
   }
   pub fn put_null(&mut self, key: &str) { self.set_property(key, Data::DNull); }
 

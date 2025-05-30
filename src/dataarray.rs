@@ -428,17 +428,17 @@ impl DataArray {
   pub fn push_float(&mut self, val: f64) { self.push_property(Data::DFloat(val)); }
   pub fn push_object(&mut self, o: DataObject) {
     self.push_property(Data::DObject(o.data_ref));
-    core::mem::forget(o);
+    //core::mem::forget(o);
   }
   #[deprecated(since = "0.1.2", note = "please use `push_array` instead")]
   pub fn push_list(&mut self, a: DataArray) { self.push_array(a); }
   pub fn push_array(&mut self, a: DataArray) {
     self.push_property(Data::DArray(a.data_ref));
-    core::mem::forget(a);
+    //core::mem::forget(a);
   }
   pub fn push_bytes(&mut self, b: DataBytes) {
     self.push_property(Data::DBytes(b.data_ref));
-    core::mem::forget(b);
+    //core::mem::forget(b);
   }
   pub fn push_null(&mut self) { self.push_property(Data::DNull); }
 
@@ -480,15 +480,15 @@ impl DataArray {
   pub fn put_float(&mut self, id: usize, val: f64) { self.set_property(id, Data::DFloat(val)); }
   pub fn put_object(&mut self, id: usize, o: DataObject) {
     self.set_property(id, Data::DObject(o.data_ref));
-    core::mem::forget(o);
+    //core::mem::forget(o);
   }
   pub fn put_array(&mut self, id: usize, a: DataArray) {
     self.set_property(id, Data::DArray(a.data_ref));
-    core::mem::forget(a);
+    //core::mem::forget(a);
   }
   pub fn put_bytes(&mut self, id: usize, b: DataBytes) {
     self.set_property(id, Data::DBytes(b.data_ref));
-    core::mem::forget(b);
+    //core::mem::forget(b);
   }
   pub fn put_null(&mut self, id: usize) { self.set_property(id, Data::DNull); }
 
