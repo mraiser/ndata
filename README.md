@@ -84,13 +84,13 @@ After initialization, you can create and manipulate ndata structures. The API re
 
 * DataBytes: a byte buffer type.
 
-For example, to create an object you can do let obj = DataObject::new();. You can then insert properties into it. A property is set by providing a Data value. 
+For example, to create an object you can do let obj = DataObject::new();. You can then insert properties into it. 
 
 For instance:
 
 ```
-  obj.set_property("name", Data::DString("Alice".into()));
-  obj.set_property("age", Data::DInt(30));
+  obj.set_string("name", "Alice");
+  obj.set_int("age", 30);
 ```
 
 Here, "name" and "age" become keys in the object, with values of type string and integer respectively. You can retrieve properties similarly (e.g., obj.get_string("name") or obj.get_int("age")). Internally, these calls lock the global heap, insert or fetch the value, and manage reference counts automatically.
@@ -128,11 +128,11 @@ The ndata codebase is organized into several modules, each handling a different 
 
 * src/dataobject.rs: 
 
-  This module implements the DataObject type, ndata’s dynamic object (key-value map). Internally, a DataObject is defined as a struct holding a data_ref: usize field. This data_ref is the index of this object’s storage in the global object heap. The actual data (the map of key to value) lives in a global static heap, and data_ref is like a pointer to it. The DataObject module declares a global static OH (object heap) of type Heap<HashMap<String, Data>> and a static OD (object drop list) for pending deletions. It provides functions to manipulate objects: e.g., DataObject::new() allocates a new empty HashMap in the heap and returns a DataObject pointing to it, set_property(&mut self, key, Data) inserts a value into the map, get_property(&self, key) retrieves a value, and convenience getters like get_int, get_string convert the result to a Rust primitive. DataObject’s Drop implementation is overridden so that when a DataObject goes out of scope, it does not immediately free the map; instead it pushes its data_ref onto the OD drop list (to be collected later). There’s also a Clone impl: cloning a DataObject simply creates a new handle to the same data_ref and increments the reference count for that object in the heap. (Thus, multiple DataObject instances can point to the same underlying map; the heap’s ref count ensures it stays alive until all are dropped.) The module also includes an init() function to initialize the static OH heap (by calling Heap::new()) and a gc() function to actually free any objects whose ref count dropped to zero (processing the OD list). Similar structure and logic apply to DataArray and DataBytes below.
+  This module implements the DataObject type, ndata’s dynamic object (key-value map). Internally, a DataObject is defined as a struct holding a data_ref: usize field. This data_ref is the index of this object’s storage in the global object heap. The actual data (the map of key to value) lives in a global static heap, and data_ref is like a pointer to it. The DataObject module declares a global static OH (object heap) of type Heap<HashMap<String, Data>> and a static OD (object drop list) for pending deletions. It provides functions to manipulate objects: e.g., DataObject::new() allocates a new empty HashMap in the heap and returns a DataObject pointing to it, set_property(&mut self, key, Data) inserts a value into the map, get_property(&self, key) retrieves value as a Data (the generic enum for types). These functions have typed convenience functions that wrap them for all of the types, such as put_string or get_int, which generally should be preferred of the generic accessors. DataObject’s Drop implementation is overridden so that when a DataObject goes out of scope, it does not immediately free the map; instead it pushes its data_ref onto the OD drop list (to be collected later). There’s also a Clone impl: cloning a DataObject simply creates a new handle to the same data_ref and increments the reference count for that object in the heap. (Thus, multiple DataObject instances can point to the same underlying map; the heap’s ref count ensures it stays alive until all are dropped.) The module also includes an init() function to initialize the static OH heap (by calling Heap::new()) and a gc() function to actually free any objects whose ref count dropped to zero (processing the OD list). Similar structure and logic apply to DataArray and DataBytes below.
 
 * src/dataarray.rs: 
 
-  This defines DataArray, the dynamic array type. It parallels DataObject in structure. Internally it has pub data_ref: usize pointing into a global array heap AH (of type Heap<Vec<Data>>) and a drop list AD. A new DataArray will allocate a fresh Vec<Data> in the heap. Methods like push(&mut self, Data) or index access are provided to manipulate the array. Dropping or cloning a DataArray works the same way (ref counts managed in the heap, indices pushed to AD on drop). DataArray also has its own init() and gc() functions that the top-level ndata::init/gc will call.
+  This defines DataArray, the dynamic array type. It parallels DataObject in structure. Internally it has pub data_ref: usize pointing into a global array heap AH (of type Heap<Vec<Data>>) and a drop list AD. A new DataArray will allocate a fresh Vec<Data> in the heap. Methods like push_int(&mut self, i64) or get_string(usize) are provided to manipulate/access the array. Dropping or cloning a DataArray works the same way (ref counts managed in the heap, indices pushed to AD on drop). DataArray also has its own init() and gc() functions that the top-level ndata::init/gc will call.
 
 * src/databytes.rs: 
 
