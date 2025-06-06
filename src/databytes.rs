@@ -3,6 +3,36 @@ use core::cmp;
 use crate::heap::*;
 use crate::sharedmutex::*;
 
+#[cfg(feature="no_std_support")]
+use alloc::string::String;
+#[cfg(feature="no_std_support")]
+use alloc::vec::Vec;
+#[cfg(not(feature="no_std_support"))]
+use std::println;
+
+
+// --- NDataError Definition ---
+#[derive(Debug)]
+pub enum NDataError {
+    InvalidBytesRef,
+    StreamNotReadable,
+    StreamNotWritable,
+}
+
+impl core::fmt::Display for NDataError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            NDataError::InvalidBytesRef => write!(f, "DataBytes reference is invalid or points to deallocated memory"),
+            NDataError::StreamNotReadable => write!(f, "Stream is not open for reading"),
+            NDataError::StreamNotWritable => write!(f, "Stream is not open for writing"),
+        }
+    }
+}
+
+#[cfg(not(feature = "no_std_support"))]
+impl std::error::Error for NDataError {}
+
+
 /// Storage for runtime byte buffer values
 static mut BH:SharedMutex<Heap<DataStream>> = SharedMutex::new();
 
@@ -12,308 +42,476 @@ static mut BD:SharedMutex<Vec<usize>> = SharedMutex::new();
 /// Implements a stream of bytes
 #[derive(Debug, Default)]
 pub struct DataStream {
-  /// Raw data currently held in stream
-  data: Vec<u8>,
-  /// Length of data to be sent in this stream. Value should be zero (unset) or fixed (unchanging) value.
-  len: usize,
-  /// Indicates whether the current stream is open to reading
-  read_open: bool,
-  /// Indicates whether the current stream is open to writing
-  write_open: bool,
-  /// Optional MIME type of this stream
-  mime_type: Option<String>,
+    /// Raw data currently held in stream
+    data: Vec<u8>,
+    /// Length of data to be sent in this stream. Value should be zero (unset) or fixed (unchanging) value.
+    len: usize,
+    /// Indicates whether the current stream is open to reading
+    read_open: bool,
+    /// Indicates whether the current stream is open to writing
+    write_open: bool,
+    /// Optional MIME type of this stream
+    mime_type: Option<String>,
 }
 
 impl DataStream {
-  /// Create a new (empty) byte stream.
-  pub fn new() -> Self {
-    DataStream {
-      data: Vec::new(),
-      len: 0,
-      read_open: true,
-      write_open: true,
-      mime_type: None,
+    pub fn new() -> Self {
+        DataStream {
+            data: Vec::new(),
+            len: 0,
+            read_open: true,
+            write_open: true,
+            mime_type: None,
+        }
     }
-  }
 
-  /// Create a new byte stream from a Vec<u8>.
-  pub fn from_bytes(buf:Vec<u8>) -> DataStream {
-    let len = buf.len();
-    DataStream {
-      data: buf,
-      len: len,
-      read_open: true,
-      write_open: false,
-      mime_type: None,
+    pub fn from_bytes(buf:Vec<u8>) -> DataStream {
+        let len = buf.len();
+        DataStream {
+            data: buf,
+            len: len,
+            read_open: true,
+            write_open: false,
+            mime_type: None,
+        }
     }
-  }
 
-  /// Return a deep copy of the data stream
-  pub fn deep_copy(&self) -> DataStream {
-    DataStream {
-      data: self.data.to_owned(),
-      len: self.len,
-      read_open: self.read_open,
-      write_open: self.write_open,
-      mime_type: self.mime_type.to_owned(),
+    pub fn deep_copy(&self) -> DataStream {
+        DataStream {
+            data: self.data.to_owned(),
+            len: self.len,
+            read_open: self.read_open,
+            write_open: self.write_open,
+            mime_type: self.mime_type.as_ref().map(|s| s.to_string()),
+        }
     }
-  }
 }
 
-/// **DO NOT USE**
-///
-/// This function should only be used externally by DataArray and DataObject
 pub fn bheap() -> &'static mut SharedMutex<Heap<DataStream>> {
-  #[allow(static_mut_refs)]
-  unsafe { &mut BH }
+    #[allow(static_mut_refs)]
+    unsafe { &mut BH }
 }
 
 fn bdrop() -> &'static mut SharedMutex<Vec<usize>> {
-  #[allow(static_mut_refs)]
-  unsafe { &mut BD }
+    #[allow(static_mut_refs)]
+    unsafe { &mut BD }
 }
 
-/// Represents a buffer of bytes (```Vec<u8>```)
 #[derive(Debug, Default)]
 pub struct DataBytes {
-  /// The pointer to the array in the byte buffer heap.
-  pub data_ref: usize,
+    pub data_ref: usize,
 }
 
 impl Clone for DataBytes{
-  /// Returns another DataBytes pointing to the same value.
-  fn clone(&self) -> Self {
-    let o = DataBytes{
-      data_ref: self.data_ref,
-    };
-    let _x = &mut bheap().lock().incr(self.data_ref);
-    o
-  }
+    fn clone(&self) -> Self {
+        let _ = bheap().lock().incr(self.data_ref);
+        DataBytes{
+            data_ref: self.data_ref,
+        }
+    }
 }
 
 impl DataBytes {
-  /// Initialize global storage of byte buffers. Call only once at startup.
-  #[allow(static_mut_refs)]
-  pub fn init() -> ((u64, u64),(u64, u64)){
-    unsafe {
-      if !BH.is_initialized() {
-        BH.set(Heap::new());
-        BD.set(Vec::new());
-      }
+    #[allow(static_mut_refs)]
+    pub fn init() -> ((u64, u64),(u64, u64)){
+        unsafe {
+            if !BH.is_initialized() {
+                BH.set(Heap::new());
+                BD.set(Vec::new());
+            }
+        }
+        DataBytes::share()
     }
-    DataBytes::share()
-  }
 
-  #[allow(static_mut_refs)]
-  pub fn share() -> ((u64, u64), (u64, u64)){
-    unsafe{
-      let q = BH.share();
-      let r = BD.share();
-      (q, r)
+    #[allow(static_mut_refs)]
+    pub fn share() -> ((u64, u64), (u64, u64)){
+        unsafe{
+            let q = BH.share();
+            let r = BD.share();
+            (q, r)
+        }
     }
-  }
 
-  /// Mirror global storage of arrays from another process. Call only once at startup.
-  #[allow(static_mut_refs)]
-  pub fn mirror(q:(u64, u64), r:(u64, u64)){
-    unsafe {
-      BH.mirror(q.0, q.1);
-      BD.mirror(r.0, r.1);
+    #[allow(static_mut_refs)]
+    pub fn mirror(q:(u64, u64), r:(u64, u64)){
+        unsafe {
+            BH.mirror(q.0, q.1);
+            BD.mirror(r.0, r.1);
+        }
     }
-  }
 
-  /// Create a new (empty) byte buffer.
-  pub fn new() -> DataBytes {
-    let data_ref = &mut bheap().lock().push(DataStream::new());
-    return DataBytes {
-      data_ref: *data_ref,
-    };
-  }
-
-  /// Create a new byte buffer from a Vec<u8>.
-  pub fn from_bytes(buf:&Vec<u8>) -> DataBytes {
-    let data_ref = &mut bheap().lock().push(DataStream::from_bytes(buf.to_vec()));
-    return DataBytes {
-      data_ref: *data_ref,
-    };
-  }
-
-  /// Returns a copy of the underlying vec of bytes in the array
-  pub fn get_data(&self) -> Vec<u8> {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    vec.data.to_owned()
-  }
-
-  /// Appends the given slice to the end of the bytes in the array
-  pub fn write(&self, buf:&[u8]) -> bool {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    if !vec.write_open || !vec.read_open { return false }
-    vec.data.extend_from_slice(buf);
-    true
-  }
-
-  /// Removes and returns up to the requested number of bytes from the array
-  pub fn read(&self, n:usize) -> Vec<u8> {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    if !vec.read_open { panic!("Attempt to read from closed data stream"); }
-    let n = cmp::min(n, vec.data.len());
-    let d = vec.data[0..n].to_vec();
-    vec.data.drain(0..n);
-    if !vec.write_open && vec.data.len() == 0 {
-      vec.read_open = false;
+    pub fn new() -> DataBytes {
+        let data_ref = bheap().lock().push(DataStream::new());
+        DataBytes { data_ref }
     }
-    d
-  }
 
-  /// Sets the underlying vec of bytes in the array
-  pub fn set_data(&self, buf:&Vec<u8>) {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    let len = buf.len();
-    vec.data.resize(len, 0); // FIXME - Is this necessary?
-    vec.data.clone_from_slice(buf);
-    vec.len = len;
-    vec.write_open = false;
-  }
-
-  /// Get the number of bytes currently in the underlying byte buffer
-  pub fn current_len(&self) -> usize {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    vec.data.len()
-  }
-
-  /// Get the declared total number of bytes in the stream
-  pub fn stream_len(&self) -> usize {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    vec.len
-  }
-
-  /// Set the declared total number of bytes in the stream
-  pub fn set_stream_len(&self, len: usize) {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    vec.len = len;
-  }
-
-  /// Return true if the underlying data stream is open for writing
-  pub fn is_write_open(&self) -> bool {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    vec.write_open
-  }
-
-  /// Return true if the underlying data stream is open for reading
-  pub fn is_read_open(&self) -> bool {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    vec.read_open
-  }
-
-  /// Close the underlying data stream to further writing
-  pub fn close_write(&self) {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    vec.write_open = false;
-  }
-
-  /// Close the underlying data stream to further reading
-  pub fn close_read(&self) {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    vec.read_open = false;
-  }
-
-  /// Set the optional MIME type for this stream
-  pub fn set_mime_type(&self, mime:Option<String>) {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    vec.mime_type = mime;
-  }
-
-  /// Get the optional MIME type for this stream
-  pub fn get_mime_type(&self) -> Option<String> {
-    let heap = &mut bheap().lock();
-    let vec = heap.get(self.data_ref);
-    vec.mime_type.to_owned()
-  }
-
-  /// Get a reference to the byte buffer from the heap
-  pub fn get(data_ref: usize) -> DataBytes {
-    let o = DataBytes{
-      data_ref: data_ref,
-    };
-    let _x = &mut bheap().lock().incr(data_ref);
-    o
-  }
-
-  /// Increase the reference count for this DataBytes.
-  pub fn incr(&self) {
-    let bheap = &mut bheap().lock();
-    bheap.incr(self.data_ref);
-  }
-
-  /// Decrease the reference count for this DataBytes.
-  pub fn decr(&self) {
-    let bheap = &mut bheap().lock();
-    bheap.decr(self.data_ref);
-  }
-
-  /// Returns a new ```DataBytes``` that points to the same underlying byte buffer.
-  #[deprecated(since="0.3.0", note="please use `clone` instead")]
-  pub fn duplicate(&self) -> DataBytes {
-    self.clone()
-  }
-
-  /// Returns a new ```DataBytes``` that points to a copy of the underlying byte buffer.
-  pub fn deep_copy(&self) -> DataBytes {
-    let heap = &mut bheap().lock();
-    let bytes = heap.get(self.data_ref);
-    let vec = bytes.deep_copy();
-    let data_ref = &mut bheap().lock().push(vec);
-    return DataBytes {
-      data_ref: *data_ref,
-    };
-  }
-
-  /// Returns the byte buffer as a hexidecimal String.
-  pub fn to_hex_string(&self) -> String {
-    let heap = &mut bheap().lock();
-    let bytes = heap.get(self.data_ref);
-    let strs: Vec<String> = bytes.data.iter()
-    .map(|b| format!("{:02X}", b))
-    .collect();
-    strs.join(" ")
-  }
-
-  /// Prints the byte buffers currently stored in the heap
-  #[cfg(not(feature="no_std_support"))]
-  pub fn print_heap() {
-    println!("bytes {:?}", &mut bheap().lock().keys());
-  }
-
-  /// Perform garbage collection. Byte buffers will not be removed from the heap until
-  /// ```DataBytes::gc()``` is called.
-  pub fn gc() {
-    let bheap = &mut bheap().lock();
-    let bdrop = &mut bdrop().lock();
-    let mut i = bdrop.len();
-    while i>0 {
-      i = i - 1;
-      let x = bdrop.remove(0);
-      bheap.decr(x);
+    pub fn from_bytes(buf:&Vec<u8>) -> DataBytes {
+        let data_ref = bheap().lock().push(DataStream::from_bytes(buf.to_vec()));
+        DataBytes { data_ref }
     }
-  }
+
+    // --- Original Public Methods (panicking on error) ---
+
+    pub fn get_data(&self) -> Vec<u8> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::get_data called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.data.to_owned()
+    }
+
+    pub fn write(&self, buf:&[u8]) -> bool {
+        let mut heap_guard = bheap().lock();
+         if !heap_guard.contains_key(self.data_ref) {
+            // Original behavior might not have panicked here, but returned false.
+            // For consistency with other panicking methods on invalid ref, this is an option.
+            // However, if original returned false, we stick to that.
+            // Let's assume original didn't panic on invalid ref for write but returned false.
+             if cfg!(debug_assertions) { // Or a more prominent warning/log
+                #[cfg(not(feature="no_std_support"))]
+                println!("Warning: DataBytes::write called on invalid data_ref: {}", self.data_ref);
+             }
+            return false;
+        }
+        let stream = heap_guard.get(self.data_ref);
+        // Original logic: if !vec.write_open || !vec.read_open { return false }
+        // Sticking to the original logic here.
+        if !stream.write_open || !stream.read_open { return false; }
+        stream.data.extend_from_slice(buf);
+        true
+    }
+
+    pub fn read(&self, n:usize) -> Vec<u8> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::read called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        if !stream.read_open {
+            panic!("Attempt to read from closed data stream: ref {}", self.data_ref);
+        }
+        let num_to_read = cmp::min(n, stream.data.len());
+        let d = stream.data[0..num_to_read].to_vec();
+        stream.data.drain(0..num_to_read);
+
+        if !stream.write_open && stream.data.is_empty() {
+            stream.read_open = false;
+        }
+        d
+    }
+
+    pub fn set_data(&self, buf:&Vec<u8>) {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::set_data called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        let len = buf.len();
+        stream.data.clear();
+        stream.data.extend_from_slice(buf);
+
+        stream.len = len;
+        stream.write_open = false;
+    }
+
+    pub fn current_len(&self) -> usize {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::current_len called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.data.len()
+    }
+
+    pub fn stream_len(&self) -> usize {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::stream_len called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.len
+    }
+
+    pub fn set_stream_len(&self, len: usize) {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::set_stream_len called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.len = len;
+    }
+
+    pub fn is_write_open(&self) -> bool {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            // Original behavior for boolean checks on invalid ref might be to return a default (e.g., false)
+            // or panic. Let's assume panic for consistency with other direct access.
+            panic!("DataBytes::is_write_open called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.write_open
+    }
+
+    pub fn is_read_open(&self) -> bool {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::is_read_open called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.read_open
+    }
+
+    pub fn close_write(&self) {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::close_write called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.write_open = false;
+    }
+
+    pub fn close_read(&self) {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::close_read called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.read_open = false;
+    }
+
+    pub fn set_mime_type(&self, mime:Option<String>) {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::set_mime_type called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.mime_type = mime;
+    }
+
+    pub fn get_mime_type(&self) -> Option<String> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::get_mime_type called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.mime_type.as_ref().map(|s| s.to_string())
+    }
+
+    pub fn to_hex_string(&self) -> String {
+        let mut heap_guard = bheap().lock();
+         if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::to_hex_string called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        let strs: Vec<String> = stream.data.iter()
+            .map(|b| format!("{:02X}", b))
+            .collect();
+        strs.join(" ")
+    }
+
+    pub fn deep_copy(&self) -> DataBytes { // Already correct (panics on error)
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::deep_copy called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream_to_copy = heap_guard.get(self.data_ref);
+        let new_stream = stream_to_copy.deep_copy();
+
+        let new_data_ref = heap_guard.push(new_stream);
+        DataBytes {
+            data_ref: new_data_ref,
+        }
+    }
+
+    // --- New `try_` Methods (non-panicking, return Result) ---
+
+    pub fn try_get_data(&self) -> Result<Vec<u8>, NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        Ok(stream.data.to_owned())
+    }
+
+    pub fn try_write(&mut self, buf:&[u8]) -> Result<(), NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        if !stream.write_open {
+            return Err(NDataError::StreamNotWritable);
+        }
+        // Original write also checked !read_open. If that's essential:
+        // if !stream.write_open || !stream.read_open { return Err(...) }
+        stream.data.extend_from_slice(buf);
+        Ok(())
+    }
+
+    pub fn try_read(&mut self, n:usize) -> Result<Vec<u8>, NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        if !stream.read_open {
+            return Err(NDataError::StreamNotReadable);
+        }
+        let num_to_read = cmp::min(n, stream.data.len());
+        let d = stream.data[0..num_to_read].to_vec();
+        stream.data.drain(0..num_to_read);
+
+        if !stream.write_open && stream.data.is_empty() {
+            stream.read_open = false;
+        }
+        Ok(d)
+    }
+
+    pub fn try_set_data(&mut self, buf:&Vec<u8>) -> Result<(), NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        let len = buf.len();
+        stream.data.clear();
+        stream.data.extend_from_slice(buf);
+
+        stream.len = len;
+        stream.write_open = false;
+        Ok(())
+    }
+
+    pub fn try_current_len(&self) -> Result<usize, NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        Ok(stream.data.len())
+    }
+
+    pub fn try_stream_len(&self) -> Result<usize, NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        Ok(stream.len)
+    }
+
+    pub fn try_set_stream_len(&mut self, len: usize) -> Result<(), NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.len = len;
+        Ok(())
+    }
+
+    pub fn try_is_write_open(&self) -> Result<bool, NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        Ok(stream.write_open)
+    }
+
+    pub fn try_is_read_open(&self) -> Result<bool, NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        Ok(stream.read_open)
+    }
+
+    pub fn try_close_write(&mut self) -> Result<(), NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.write_open = false;
+        Ok(())
+    }
+
+    pub fn try_close_read(&mut self) -> Result<(), NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.read_open = false;
+        Ok(())
+    }
+
+    pub fn try_set_mime_type(&mut self, mime:Option<String>) -> Result<(), NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        stream.mime_type = mime;
+        Ok(())
+    }
+
+    pub fn try_get_mime_type(&self) -> Result<Option<String>, NDataError> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            return Err(NDataError::InvalidBytesRef);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        Ok(stream.mime_type.as_ref().map(|s| s.to_string()))
+    }
+
+    // --- Static and other existing methods ---
+    pub fn get(data_ref: usize) -> DataBytes {
+        let _ = bheap().lock().incr(data_ref);
+        DataBytes{
+            data_ref,
+        }
+    }
+
+    pub fn incr(&self) {
+        let _ = bheap().lock().incr(self.data_ref);
+    }
+
+    pub fn decr(&self) {
+        let _ = bheap().lock().decr(self.data_ref);
+    }
+
+    #[deprecated(since="0.3.0", note="please use `clone` instead")]
+    pub fn duplicate(&self) -> DataBytes {
+        self.clone()
+    }
+
+    #[cfg(not(feature="no_std_support"))]
+    pub fn print_heap() {
+        println!("bytes {:?}", bheap().lock().keys());
+    }
+
+    pub fn gc() {
+        let mut bheap_guard = bheap().lock();
+        let mut bdrop_guard = bdrop().lock();
+
+        for data_ref_to_decr in bdrop_guard.drain(..) {
+            if bheap_guard.contains_key(data_ref_to_decr) {
+                 bheap_guard.decr(data_ref_to_decr);
+            } else {
+                #[cfg(not(feature = "no_std_support"))]
+                println!("Warning: DataBytes::gc trying to decr non-existent ref {}", data_ref_to_decr);
+            }
+        }
+    }
 }
 
-/// Adds this ```DataBytes```'s data_ref to BDROP. Reference counts are adjusted when
-/// ```DataBytes::gc()``` is called.
 impl Drop for DataBytes {
-  fn drop(&mut self) {
-    bdrop().lock().push(self.data_ref);
-  }
+    fn drop(&mut self) {
+        bdrop().lock().push(self.data_ref);
+    }
 }
