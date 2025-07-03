@@ -36,6 +36,7 @@ use crate::dataobject::*;
 use crate::dataarray::*;
 use crate::databytes::*;
 
+#[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct NDataConfig{
   data: (((u64,u64),(u64,u64)),((u64,u64),(u64,u64)),((u64,u64),(u64,u64))),
