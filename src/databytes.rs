@@ -1,10 +1,12 @@
 extern crate alloc;
 use core::cmp;
+use core::mem; 
 use crate::heap::*;
 use crate::sharedmutex::*;
+use alloc::collections::VecDeque; 
 
 #[cfg(feature="no_std_support")]
-use alloc::string::String;
+use alloc::string::{String, ToString};
 #[cfg(feature="no_std_support")]
 use alloc::vec::Vec;
 #[cfg(not(feature="no_std_support"))]
@@ -39,11 +41,14 @@ static mut BH:SharedMutex<Heap<DataStream>> = SharedMutex::new();
 /// Storage for runtime reference count reductions
 static mut BD:SharedMutex<Vec<usize>> = SharedMutex::new();
 
-/// Implements a stream of bytes
+/// Implements a stream of bytes.
+///
+/// Internally uses a VecDeque to allow O(1) removal from the front of the stream,
+/// solving performance issues with repeated small reads from large buffers.
 #[derive(Debug, Default)]
 pub struct DataStream {
     /// Raw data currently held in stream
-    data: Vec<u8>,
+    data: VecDeque<u8>,
     /// Length of data to be sent in this stream. Value should be zero (unset) or fixed (unchanging) value.
     len: usize,
     /// Indicates whether the current stream is open to reading
@@ -57,7 +62,7 @@ pub struct DataStream {
 impl DataStream {
     pub fn new() -> Self {
         DataStream {
-            data: Vec::new(),
+            data: VecDeque::new(),
             len: 0,
             read_open: true,
             write_open: true,
@@ -65,10 +70,10 @@ impl DataStream {
         }
     }
 
-    pub fn from_bytes(buf:Vec<u8>) -> DataStream {
+    pub fn from_bytes(buf: Vec<u8>) -> DataStream {
         let len = buf.len();
         DataStream {
-            data: buf,
+            data: VecDeque::from(buf),
             len: len,
             read_open: true,
             write_open: false,
@@ -78,7 +83,7 @@ impl DataStream {
 
     pub fn deep_copy(&self) -> DataStream {
         DataStream {
-            data: self.data.to_owned(),
+            data: self.data.clone(),
             len: self.len,
             read_open: self.read_open,
             write_open: self.write_open,
@@ -146,7 +151,8 @@ impl DataBytes {
     }
 
     pub fn from_bytes(buf:&Vec<u8>) -> DataBytes {
-        let data_ref = bheap().lock().push(DataStream::from_bytes(buf.to_vec()));
+        // Clone the input vec into the deque
+        let data_ref = bheap().lock().push(DataStream::from_bytes(buf.clone()));
         DataBytes { data_ref }
     }
 
@@ -158,27 +164,27 @@ impl DataBytes {
             panic!("DataBytes::get_data called on invalid data_ref: {}", self.data_ref);
         }
         let stream = heap_guard.get(self.data_ref);
-        stream.data.to_owned()
+        // Convert VecDeque to Vec
+        Vec::from(stream.data.clone())
     }
 
     pub fn write(&self, buf:&[u8]) -> bool {
+        // WARNING - No guard on writing too much too fast and running out of RAM
+        //if self.current_len() > 100 * 1024 * 1024 { return false; }
+
         let mut heap_guard = bheap().lock();
          if !heap_guard.contains_key(self.data_ref) {
-            // Original behavior might not have panicked here, but returned false.
-            // For consistency with other panicking methods on invalid ref, this is an option.
-            // However, if original returned false, we stick to that.
-            // Let's assume original didn't panic on invalid ref for write but returned false.
-             if cfg!(debug_assertions) { // Or a more prominent warning/log
+             if cfg!(debug_assertions) {
                 #[cfg(not(feature="no_std_support"))]
                 println!("Warning: DataBytes::write called on invalid data_ref: {}", self.data_ref);
              }
             return false;
         }
         let stream = heap_guard.get(self.data_ref);
-        // Original logic: if !vec.write_open || !vec.read_open { return false }
-        // Sticking to the original logic here.
         if !stream.write_open || !stream.read_open { return false; }
-        stream.data.extend_from_slice(buf);
+
+        // Efficiently extend the VecDeque
+        stream.data.extend(buf.iter().copied());
         true
     }
 
@@ -192,12 +198,20 @@ impl DataBytes {
             panic!("Attempt to read from closed data stream: ref {}", self.data_ref);
         }
         let num_to_read = cmp::min(n, stream.data.len());
-        let d = stream.data[0..num_to_read].to_vec();
-        stream.data.drain(0..num_to_read);
+
+        // Optimized drain on VecDeque (O(1) pointer move, followed by collection)
+        let d: Vec<u8> = stream.data.drain(0..num_to_read).collect();
 
         if !stream.write_open && stream.data.is_empty() {
             stream.read_open = false;
         }
+        
+        // MEMORY RECOVERY:
+        // If the stream was large but is now empty, release the backing memory.
+        if stream.data.is_empty() && stream.data.capacity() > 1024 * 64 {
+            stream.data.shrink_to_fit();
+        }
+
         d
     }
 
@@ -209,7 +223,7 @@ impl DataBytes {
         let stream = heap_guard.get(self.data_ref);
         let len = buf.len();
         stream.data.clear();
-        stream.data.extend_from_slice(buf);
+        stream.data.extend(buf.iter().copied());
 
         stream.len = len;
         stream.write_open = false;
@@ -245,8 +259,6 @@ impl DataBytes {
     pub fn is_write_open(&self) -> bool {
         let mut heap_guard = bheap().lock();
         if !heap_guard.contains_key(self.data_ref) {
-            // Original behavior for boolean checks on invalid ref might be to return a default (e.g., false)
-            // or panic. Let's assume panic for consistency with other direct access.
             panic!("DataBytes::is_write_open called on invalid data_ref: {}", self.data_ref);
         }
         let stream = heap_guard.get(self.data_ref);
@@ -310,7 +322,7 @@ impl DataBytes {
         strs.join(" ")
     }
 
-    pub fn deep_copy(&self) -> DataBytes { // Already correct (panics on error)
+    pub fn deep_copy(&self) -> DataBytes {
         let mut heap_guard = bheap().lock();
         if !heap_guard.contains_key(self.data_ref) {
             panic!("DataBytes::deep_copy called on invalid data_ref: {}", self.data_ref);
@@ -324,6 +336,66 @@ impl DataBytes {
         }
     }
 
+    // --- New High-Performance Methods ---
+
+    /// Reads up to `buf.len()` bytes into the provided buffer.
+    /// Returns the number of bytes read.
+    pub fn read_into(&self, buf: &mut [u8]) -> usize {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::read_into called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        if !stream.read_open {
+             panic!("Attempt to read from closed data stream: ref {}", self.data_ref);
+        }
+
+        let num_to_read = cmp::min(buf.len(), stream.data.len());
+
+        // Optimized copy from VecDeque
+        for (i, byte) in stream.data.drain(0..num_to_read).enumerate() {
+            buf[i] = byte;
+        }
+
+        if !stream.write_open && stream.data.is_empty() {
+            stream.read_open = false;
+        }
+
+        // MEMORY RECOVERY
+        if stream.data.is_empty() && stream.data.capacity() > 1024 * 64 {
+            stream.data.shrink_to_fit();
+        }
+
+        num_to_read
+    }
+
+    /// Peeks at the first `n` bytes of the stream without consuming them.
+    pub fn peek(&self, n: usize) -> Vec<u8> {
+        let mut heap_guard = bheap().lock();
+        if !heap_guard.contains_key(self.data_ref) {
+            panic!("DataBytes::peek called on invalid data_ref: {}", self.data_ref);
+        }
+        let stream = heap_guard.get(self.data_ref);
+        let num_to_peek = cmp::min(n, stream.data.len());
+        stream.data.iter().take(num_to_peek).copied().collect()
+    }
+
+    /// Moves all available data from this stream to the destination stream.
+    /// Returns the number of bytes moved.
+    pub fn pipe(&self, dest: &DataBytes) -> usize {
+        // Reads all data and writes to dest.
+        // NOTE: This allocates a temporary Vec. 
+        // For zero-allocation piping, we would need a new method in Heap/SharedMutex 
+        // that allows locking two items simultaneously, which is complex.
+        let chunk = self.read(usize::MAX);
+        let len = chunk.len();
+
+        if len > 0 {
+            dest.write(&chunk);
+        }
+        len
+    }
+
     // --- New `try_` Methods (non-panicking, return Result) ---
 
     pub fn try_get_data(&self) -> Result<Vec<u8>, NDataError> {
@@ -332,7 +404,7 @@ impl DataBytes {
             return Err(NDataError::InvalidBytesRef);
         }
         let stream = heap_guard.get(self.data_ref);
-        Ok(stream.data.to_owned())
+        Ok(Vec::from(stream.data.clone()))
     }
 
     pub fn try_write(&mut self, buf:&[u8]) -> Result<(), NDataError> {
@@ -344,9 +416,7 @@ impl DataBytes {
         if !stream.write_open {
             return Err(NDataError::StreamNotWritable);
         }
-        // Original write also checked !read_open. If that's essential:
-        // if !stream.write_open || !stream.read_open { return Err(...) }
-        stream.data.extend_from_slice(buf);
+        stream.data.extend(buf.iter().copied());
         Ok(())
     }
 
@@ -360,12 +430,17 @@ impl DataBytes {
             return Err(NDataError::StreamNotReadable);
         }
         let num_to_read = cmp::min(n, stream.data.len());
-        let d = stream.data[0..num_to_read].to_vec();
-        stream.data.drain(0..num_to_read);
+        let d: Vec<u8> = stream.data.drain(0..num_to_read).collect();
 
         if !stream.write_open && stream.data.is_empty() {
             stream.read_open = false;
         }
+
+        // MEMORY RECOVERY
+        if stream.data.is_empty() && stream.data.capacity() > 1024 * 64 {
+            stream.data.shrink_to_fit();
+        }
+
         Ok(d)
     }
 
@@ -377,7 +452,7 @@ impl DataBytes {
         let stream = heap_guard.get(self.data_ref);
         let len = buf.len();
         stream.data.clear();
-        stream.data.extend_from_slice(buf);
+        stream.data.extend(buf.iter().copied());
 
         stream.len = len;
         stream.write_open = false;
@@ -495,16 +570,37 @@ impl DataBytes {
         println!("bytes {:?}", bheap().lock().keys());
     }
 
+    /// Garbage collects dropped streams.
+    ///
+    /// # Deadlock Safety
+    /// This method uses a "swap-and-drop" strategy to avoid deadlock risks.
+    /// 1. We acquire the drop list (`BD`), efficiently swap its contents with an empty list (O(1)), and release the lock immediately.
+    /// 2. We then acquire the heap lock (`BH`) to process the decrements.
+    ///
+    /// By never holding `BD` and `BH` simultaneously, we prevent any "Hold and Wait" deadlock cycles
+    /// involving these two resources.
     pub fn gc() {
-        let mut bheap_guard = bheap().lock();
-        let mut bdrop_guard = bdrop().lock();
+        // Step 1: Atomic Swap (O(1))
+        // We take the list of refs to decrement and release the BD lock immediately.
+        let to_process = {
+            let mut bdrop_guard = bdrop().lock();
+            if bdrop_guard.is_empty() {
+                return;
+            }
+            mem::take(&mut *bdrop_guard)
+        }; // BD lock is released here.
 
-        for data_ref_to_decr in bdrop_guard.drain(..) {
-            if bheap_guard.contains_key(data_ref_to_decr) {
-                 bheap_guard.decr(data_ref_to_decr);
+        // Step 2: Process Decrements
+        // We now hold only the BH lock.
+        let mut bheap_guard = bheap().lock();
+        for data_ref in to_process {
+            if bheap_guard.contains_key(data_ref) {
+                 bheap_guard.decr(data_ref);
             } else {
                 #[cfg(not(feature = "no_std_support"))]
-                println!("Warning: DataBytes::gc trying to decr non-existent ref {}", data_ref_to_decr);
+                if cfg!(debug_assertions) {
+                    println!("Warning: DataBytes::gc trying to decr non-existent ref {}", data_ref);
+                }
             }
         }
     }
