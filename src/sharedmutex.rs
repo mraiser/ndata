@@ -6,6 +6,9 @@
 //! - Validated for False Sharing mitigation via Cache Padding.
 //! - Validated for Self-Referential safety via PhantomPinned.
 
+extern crate alloc;
+use alloc::boxed::Box;
+
 use core::cell::UnsafeCell;
 use core::hint::spin_loop;
 use core::marker::PhantomPinned;
@@ -650,7 +653,16 @@ mod global_tests {
         let barrier_clone2 = Arc::clone(&barrier);
         let thread2 = thread::spawn(move || {
             barrier_clone2.wait();
-            let val = *mutex_clone2.read();
+            // read() panics by design if it wins the race outright (state still
+            // UNINITIALIZED); get_mutex() only spins once initialization has
+            // begun. Retry until init() has at least started so the test
+            // exercises the wait path instead of racing for a panic.
+            let val = loop {
+                match std::panic::catch_unwind(|| *mutex_clone2.read()) {
+                    Ok(v) => break v,
+                    Err(_) => thread::yield_now(),
+                }
+            };
             assert_eq!(val, 123);
         });
 
