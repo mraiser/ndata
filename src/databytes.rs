@@ -5,11 +5,11 @@ use crate::heap::*;
 use crate::sharedmutex::*;
 use alloc::collections::VecDeque; 
 
-#[cfg(feature="no_std_support")]
+use alloc::format;
 use alloc::string::{String, ToString};
-#[cfg(feature="no_std_support")]
 use alloc::vec::Vec;
-#[cfg(not(feature="no_std_support"))]
+
+#[cfg(feature = "std")]
 use std::println;
 
 
@@ -31,8 +31,7 @@ impl core::fmt::Display for NDataError {
     }
 }
 
-#[cfg(not(feature = "no_std_support"))]
-impl std::error::Error for NDataError {}
+impl core::error::Error for NDataError {}
 
 
 /// Storage for runtime byte buffer values
@@ -175,7 +174,7 @@ impl DataBytes {
         let mut heap_guard = bheap().lock();
          if !heap_guard.contains_key(self.data_ref) {
              if cfg!(debug_assertions) {
-                #[cfg(not(feature="no_std_support"))]
+                #[cfg(feature = "std")]
                 println!("Warning: DataBytes::write called on invalid data_ref: {}", self.data_ref);
              }
             return false;
@@ -565,7 +564,7 @@ impl DataBytes {
         self.clone()
     }
 
-    #[cfg(not(feature="no_std_support"))]
+    #[cfg(feature = "std")]
     pub fn print_heap() {
         println!("bytes {:?}", bheap().lock().keys());
     }
@@ -597,7 +596,7 @@ impl DataBytes {
             if bheap_guard.contains_key(data_ref) {
                  bheap_guard.decr(data_ref);
             } else {
-                #[cfg(not(feature = "no_std_support"))]
+                #[cfg(feature = "std")]
                 if cfg!(debug_assertions) {
                     println!("Warning: DataBytes::gc trying to decr non-existent ref {}", data_ref);
                 }

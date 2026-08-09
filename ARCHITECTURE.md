@@ -9,7 +9,7 @@ At runtime, ndata maintains three global heaps:
 
 | Heap | Element type | Handle type | Module |
 |---|---|---|---|
-| `OBJECT_HEAP` | `HashMap<String, Data>` | `DataObject` | `src/dataobject.rs` |
+| `OBJECT_HEAP` | `BTreeMap<String, Data>` | `DataObject` | `src/dataobject.rs` |
 | `ARRAY_HEAP` | `Vec<Data>` | `DataArray` | `src/dataarray.rs` |
 | `BH` (bytes heap) | `DataStream` (bytes + read/write state + MIME type) | `DataBytes` | `src/databytes.rs` |
 

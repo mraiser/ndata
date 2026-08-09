@@ -3,12 +3,8 @@ use crate::dataobject::*;
 use crate::dataarray::*;
 use crate::databytes::DataBytes;
 
-#[cfg(feature="no_std_support")]
-use alloc::string::String;
-#[cfg(feature="no_std_support")]
+use alloc::string::{String, ToString};
 use alloc::borrow::ToOwned;
-#[cfg(feature="no_std_support")]
-use alloc::string::ToString;
 
 /// Represents an NData value
 ///

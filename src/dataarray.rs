@@ -1,22 +1,12 @@
 //! This module defines the `DataArray` struct, a thread-safe, reference-counted
 //! list-like data structure (`Vec<Data>`) stored in a shared heap.
 
-// Ensure code works in no_std environments if the feature is enabled.
-#![cfg_attr(feature = "no_std_support", no_std)]
-
-// Necessary imports from the standard library (or alloc crate for no_std).
 extern crate alloc;
-// Use std types when available (default)
-#[cfg(not(feature = "no_std_support"))]
-use std::collections::HashMap; // Needed for DataObject::delete call
-#[cfg(not(feature = "no_std_support"))]
-use std::println;
-
-// Use alloc types when only alloc is available and no_std_support is enabled
-#[cfg(feature = "no_std_support")]
-use alloc::collections::HashMap; // Needed for DataObject::delete call
-
+use alloc::collections::BTreeMap; // Needed for DataObject::delete call
 use alloc::string::{String, ToString};
+
+#[cfg(feature = "std")]
+use std::println;
 use alloc::vec::Vec;
 // Removed: use alloc::boxed::Box;
 
@@ -70,7 +60,7 @@ impl core::fmt::Display for NDataError {
 }
 
 // Implement std::error::Error only if std is available and it's not a no_std build.
-#[cfg(not(feature = "no_std_support"))]
+#[cfg(feature = "std")]
 impl std::error::Error for NDataError {}
 
 
@@ -180,7 +170,7 @@ impl DataArray {
 
     pub fn to_string(&self) -> String {
         if !aheap().lock().contains_key(self.data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: to_string called on invalid DataArray ref {}", self.data_ref);
             return "[]".to_string();
         }
@@ -212,7 +202,7 @@ impl DataArray {
                 Value::Array(_) => data_arr.push_array(DataArray::from_json(val.clone())),
                 Value::Null => data_arr.push_null(),
                 _ => {
-                    #[cfg(not(feature = "no_std_support"))]
+                    #[cfg(feature = "std")]
                     println!("Warning: Unknown JSON type encountered in array: {}", val);
                 }
             }
@@ -223,7 +213,7 @@ impl DataArray {
     #[cfg(feature = "serde_support")]
     pub fn to_json(&self) -> Value {
         if !aheap().lock().contains_key(self.data_ref) {
-             #[cfg(not(feature = "no_std_support"))]
+             #[cfg(feature = "std")]
              println!("Warning: to_json called on invalid DataArray ref {}", self.data_ref);
              return json!([]);
         }
@@ -256,7 +246,7 @@ impl DataArray {
     pub fn shallow_copy(&self) -> DataArray {
         let mut new_arr = DataArray::new();
         if !aheap().lock().contains_key(self.data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: shallow_copy called on invalid DataArray ref {}", self.data_ref);
             return new_arr;
         }
@@ -269,7 +259,7 @@ impl DataArray {
     pub fn deep_copy(&self) -> DataArray {
         let mut new_arr = DataArray::new();
         if !aheap().lock().contains_key(self.data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: deep_copy called on invalid DataArray ref {}", self.data_ref);
             return new_arr;
         }
@@ -301,7 +291,7 @@ impl DataArray {
     pub fn len(&self) -> usize {
         let heap_guard = &mut aheap().lock();
         if !heap_guard.contains_key(self.data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: len() called on invalid DataArray ref {}", self.data_ref);
             return 0;
         }
@@ -312,7 +302,7 @@ impl DataArray {
     pub fn index_of(&self, b: Data) -> i64 {
         let heap_guard = &mut aheap().lock();
          if !heap_guard.contains_key(self.data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: index_of called on invalid DataArray ref {}", self.data_ref);
             return -1;
         }
@@ -324,7 +314,7 @@ impl DataArray {
         let initial_check_exists = { // Scope for initial read-only borrow of vec
             let aheap_guard = &mut aheap().lock();
             if !aheap_guard.contains_key(self.data_ref) {
-                #[cfg(not(feature = "no_std_support"))]
+                #[cfg(feature = "std")]
                 println!("Warning: push_unique target array (ref {}) does not exist in heap.", self.data_ref);
                 return false;
             }
@@ -346,7 +336,7 @@ impl DataArray {
                 // Check self.data_ref validity again inside the new lock scope if paranoid,
                 // though it was checked above.
                 if !aheap_guard.contains_key(self.data_ref) { // Should be rare if passed first check
-                    #[cfg(not(feature = "no_std_support"))]
+                    #[cfg(feature = "std")]
                     println!("Warning: push_unique target array (ref {}) disappeared before push.", self.data_ref);
                     dataobject::oheap().lock().decr(*obj_ref_val); // Rollback incr
                     return false;
@@ -371,7 +361,7 @@ impl DataArray {
                 // but ensure no conflicting borrows.
                 let aheap_guard = &mut aheap().lock();
                 if !aheap_guard.contains_key(self.data_ref) {
-                     #[cfg(not(feature = "no_std_support"))]
+                     #[cfg(feature = "std")]
                      println!("Warning: push_unique target array (ref {}) disappeared before DArray push.", self.data_ref);
                     return false; // `b`'s count not incremented yet.
                 }
@@ -392,7 +382,7 @@ impl DataArray {
                 let _ = databytes::bheap().lock().incr(*bytes_ref_val);
                 let aheap_guard = &mut aheap().lock();
                  if !aheap_guard.contains_key(self.data_ref) {
-                    #[cfg(not(feature = "no_std_support"))]
+                    #[cfg(feature = "std")]
                     println!("Warning: push_unique target array (ref {}) disappeared before DBytes push.", self.data_ref);
                     databytes::bheap().lock().decr(*bytes_ref_val);
                     return false;
@@ -409,7 +399,7 @@ impl DataArray {
             _ => { // Primitive types
                 let aheap_guard = &mut aheap().lock();
                 if !aheap_guard.contains_key(self.data_ref) {
-                    #[cfg(not(feature = "no_std_support"))]
+                    #[cfg(feature = "std")]
                     println!("Warning: push_unique target array (ref {}) disappeared before primitive push.", self.data_ref);
                     return false;
                 }
@@ -429,7 +419,7 @@ impl DataArray {
     pub fn remove_data(&mut self, b: Data) -> bool {
         let aheap_guard = &mut aheap().lock();
         if !aheap_guard.contains_key(self.data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: remove_data target array (ref {}) does not exist in heap.", self.data_ref);
             return false;
         }
@@ -576,12 +566,12 @@ impl DataArray {
     // --- Mutators ---
     pub fn join(&mut self, a: DataArray) {
         if !aheap().lock().contains_key(self.data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: join target array (ref {}) does not exist in heap.", self.data_ref);
             return;
         }
         if !aheap().lock().contains_key(a.data_ref) {
-             #[cfg(not(feature = "no_std_support"))]
+             #[cfg(feature = "std")]
             println!("Warning: join source array (ref {}) does not exist in heap.", a.data_ref);
             return;
         }
@@ -602,7 +592,7 @@ impl DataArray {
 
         let heap_guard = &mut aheap().lock();
         if !heap_guard.contains_key(self.data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: push_property target array (ref {}) does not exist in heap.", self.data_ref);
             match &data { // Rollback increment if push fails
                 Data::DObject(i) => { dataobject::oheap().lock().decr(*i); }
@@ -653,7 +643,7 @@ impl DataArray {
         {
             let heap_guard = &mut aheap().lock();
             if !heap_guard.contains_key(self.data_ref) {
-                #[cfg(not(feature = "no_std_support"))]
+                #[cfg(feature = "std")]
                 println!("Warning: set_property target array (ref {}) does not exist in heap.", self.data_ref);
                 match &data { // Rollback increment
                     Data::DObject(i) => { dataobject::oheap().lock().decr(*i); }
@@ -750,10 +740,10 @@ impl DataArray {
     pub(crate) fn delete(
         aheap_guard: &mut Heap<Vec<Data>>,
         data_ref: usize,
-        oheap_guard: &mut Heap<HashMap<String, Data>>,
+        oheap_guard: &mut Heap<BTreeMap<String, Data>>,
     ) {
         if !aheap_guard.contains_key(data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: DataArray::delete called on non-existent ref {}", data_ref);
             return;
         }
@@ -761,7 +751,7 @@ impl DataArray {
         let current_count = aheap_guard.count(data_ref);
 
         if current_count == 0 {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: DataArray::delete called on ref {} with count 0 (after contains_key check)", data_ref);
             return;
         }
@@ -797,7 +787,7 @@ impl DataArray {
     pub fn objects(&self) -> Vec<Data> {
         let heap_guard = &mut aheap().lock();
         if !heap_guard.contains_key(self.data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: objects() called on invalid DataArray ref {}", self.data_ref);
             return Vec::new();
         }
@@ -805,7 +795,7 @@ impl DataArray {
         vec.clone()
     }
 
-    #[cfg(not(feature = "no_std_support"))]
+    #[cfg(feature = "std")]
     pub fn print_heap() {
         println!("Array Heap Keys: {:?}", aheap().lock().keys());
     }

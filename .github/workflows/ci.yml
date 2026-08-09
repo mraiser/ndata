@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Test (std)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test
+      - run: cargo test --features serde_support
+      - run: cargo test --no-default-features
+
+  no_std:
+    name: Build for a no_std target
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf
+      # Proves the crate is genuinely no_std: this target has no std at all.
+      - run: cargo build --no-default-features --target thumbv7em-none-eabihf
+      - run: cargo build --no-default-features --features mirror --target thumbv7em-none-eabihf
+
+  msrv:
+    name: Check MSRV (1.81)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.81"
+      - run: cargo check
+      - run: cargo check --no-default-features

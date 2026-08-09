@@ -111,8 +111,7 @@ impl fmt::Display for ParseError {
   }
 }
 
-#[cfg(not(feature = "no_std_support"))]
-impl std::error::Error for ParseError {}
+impl core::error::Error for ParseError {}
 
 // --- Serialization ---
 

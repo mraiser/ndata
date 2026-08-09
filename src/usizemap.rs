@@ -1,18 +1,7 @@
-#![cfg_attr(feature = "no_std_support", no_std)]
 
-// Use alloc crate only when no_std_support feature is enabled
-#[cfg(feature = "no_std_support")]
 extern crate alloc;
 
-// --- Conditional Imports for Vec and VecIntoIter ---
-
-// Use alloc's Vec and IntoIter when 'no_std_support' is enabled
-#[cfg(feature = "no_std_support")]
 use alloc::vec::{Vec, IntoIter as VecIntoIter};
-
-// Use std's Vec and IntoIter when 'no_std_support' is NOT enabled
-#[cfg(not(feature = "no_std_support"))]
-use std::vec::{Vec, IntoIter as VecIntoIter};
 
 // --- Other Core/Standard Imports ---
 use core::fmt::{self, Debug};

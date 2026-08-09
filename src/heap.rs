@@ -1,14 +1,8 @@
-#![cfg_attr(feature = "no_std_support", no_std)]
 
 extern crate alloc;
 use crate::usizemap::UsizeMap;
 
-// Use alloc::vec::Vec when the no_std_support feature is enabled
-#[cfg(feature="no_std_support")]
 use alloc::vec::Vec;
-// If std is available (default), Vec is used from the standard library prelude
-#[cfg(not(feature="no_std_support"))]
-use std::vec::Vec;
 
 use core::fmt::{self, Debug};
 

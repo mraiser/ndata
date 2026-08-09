@@ -1,3 +1,7 @@
+// Build without std when the "std" feature is off (tests always keep std so
+// `cargo test --no-default-features` still works).
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
+
 //! [![github]](https://github.com/mraiser/ndata)&ensp;[![crates-io]](https://crates.io/crates/ndata)&ensp;[![docs-rs]](https://docs.rs/ndata)
 //!
 //! [github]: https://img.shields.io/badge/github-8da0cb?style=for-the-badge&labelColor=555555&logo=github
@@ -12,6 +16,14 @@
 //! booleans, byte buffers, and null. DataObject, DataArray, and DataBytes instances 
 //! maintain reference counts. Garbage collection is performed manually by calling the 
 //! type's gc() function.
+
+extern crate alloc;
+
+// Needed by NDataConfig when building without std.
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec;
+use alloc::vec::Vec;
 
 pub mod heap;
 pub mod usizemap;
@@ -87,7 +99,7 @@ pub fn gc() {
 }
 
 /// Prints the objects currently stored in the heap
-#[cfg(not(feature="no_std_support"))]
+#[cfg(feature = "std")]
 pub fn print_heap() {
   println!("------------ HEAP ------------");
   DataObject::print_heap();

@@ -2,6 +2,7 @@
 name = "ndata"
 version = "0.3.16"
 edition = "2021"
+rust-version = "1.81"
 license = "MIT"
 readme = "README.md"
 description = "Thread-safe, self-owned JSON-like data with manual garbage collection."
@@ -10,9 +11,10 @@ documentation = "https://docs.rs/ndata/latest/ndata/"
 repository = "https://github.com/mraiser/ndata"
 
 [features]
-serde_support = ["serde_json"]
+default = ["std"]
+std = []
+serde_support = ["std", "serde_json"]
 mirror = []
-no_std_support = []
 
 [dependencies]
 serde_json = { version = "1", optional = true }

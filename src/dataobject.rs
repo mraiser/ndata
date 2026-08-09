@@ -1,24 +1,16 @@
 //! This module defines the `DataObject` struct, a thread-safe, reference-counted
-//! map-like data structure (`HashMap<String, Data>`) stored in a shared heap.
+//! map-like data structure (`BTreeMap<String, Data>`) stored in a shared heap.
 
-// Ensure code works in no_std environments if the feature is enabled.
-#![cfg_attr(feature = "no_std_support", no_std)]
-
-// Necessary imports from the standard library (or alloc crate for no_std).
 extern crate alloc;
-// Use std types when available (default)
-#[cfg(not(feature = "no_std_support"))]
-use std::collections::HashMap;
-#[cfg(not(feature = "no_std_support"))]
-use std::println; // Keep for existing print_heap, etc.
-
-// Use alloc types when only alloc is available and no_std_support is enabled
-#[cfg(feature = "no_std_support")]
-use alloc::collections::HashMap; // Ensure this is BTreeMap if HashMap is not no_std compatible in your setup
-
+// BTreeMap (rather than HashMap) keeps the crate alloc-only for no_std builds
+// and gives deterministic, sorted key iteration in both configurations.
+use alloc::collections::BTreeMap;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use alloc::boxed::Box; // For Box<dyn std::error::Error> in try_from_string
+use alloc::boxed::Box;
+
+#[cfg(feature = "std")]
+use std::println; // Warnings and print_heap are std-only.
 
 // Imports from other modules within the ndata crate.
 use crate::data::*;
@@ -58,18 +50,17 @@ impl core::fmt::Display for NDataError {
     }
 }
 
-// Implement std::error::Error only if std is available and it's not a no_std build.
-#[cfg(not(feature = "no_std_support"))]
-impl std::error::Error for NDataError {}
+// core::error::Error is stable since Rust 1.81 and is the same trait std re-exports.
+impl core::error::Error for NDataError {}
 
 
 // --- Global Static Heaps ---
-static mut OBJECT_HEAP: SharedMutex<Heap<HashMap<String, Data>>> = SharedMutex::new();
+static mut OBJECT_HEAP: SharedMutex<Heap<BTreeMap<String, Data>>> = SharedMutex::new();
 static mut OBJECT_DROP_QUEUE: SharedMutex<Vec<usize>> = SharedMutex::new();
 
 // --- Heap Accessor Functions ---
 #[doc(hidden)]
-pub fn oheap() -> &'static mut SharedMutex<Heap<HashMap<String, Data>>> {
+pub fn oheap() -> &'static mut SharedMutex<Heap<BTreeMap<String, Data>>> {
     #[allow(static_mut_refs)]
     unsafe { &mut OBJECT_HEAP }
 }
@@ -124,7 +115,7 @@ impl DataObject {
     }
 
     pub fn new() -> Self {
-        let data_ref = oheap().lock().push(HashMap::<String, Data>::new());
+        let data_ref = oheap().lock().push(BTreeMap::<String, Data>::new());
         DataObject { data_ref }
     }
 
@@ -143,7 +134,7 @@ impl DataObject {
 
     // --- Serialization / Deserialization ---
     // This existing method returns Box<dyn Error>, keep as is.
-    pub fn try_from_string(s: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn try_from_string(s: &str) -> Result<Self, Box<dyn core::error::Error>> {
         #[cfg(feature = "serde_support")]
         {
             let value = serde_json::from_str(s)?;
@@ -156,10 +147,10 @@ impl DataObject {
             // If json_util returns its own error type, that needs to be Boxed.
             // For now, assume it can be boxed or the signature of json_util::object_from_string fits.
             // If it returns, for example, a custom json_util::Error, map it:
-            // json_util::object_from_string(s).map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+            // json_util::object_from_string(s).map_err(|e| Box::new(e) as Box<dyn core::error::Error>)
             match json_util::object_from_string(s) {
                  Ok(obj) => Ok(obj),
-                 Err(e) => Err(Box::new(e) as Box<dyn std::error::Error>), // Example boxing
+                 Err(e) => Err(Box::new(e) as Box<dyn core::error::Error>), // Example boxing
             }
         }
     }
@@ -209,7 +200,7 @@ impl DataObject {
                 Value::Array(_) => data_obj.put_array(key, DataArray::from_json(val.clone())), // Assumes DataArray::from_json exists
                 Value::Null => data_obj.put_null(key),
                 _ => {
-                    #[cfg(not(feature = "no_std_support"))]
+                    #[cfg(feature = "std")]
                     println!("Warning: Unknown JSON type encountered for key '{}': {}", key, val);
                 }
             }
@@ -225,7 +216,7 @@ impl DataObject {
             // Ensure data_ref is valid. If not, heap.get might panic.
             // Consider adding a check or having heap.get return Option/Result.
             if !heap_guard.contains_key(self.data_ref) {
-                 #[cfg(not(feature = "no_std_support"))]
+                 #[cfg(feature = "std")]
                  println!("Warning: Invalid data_ref {} in to_json", self.data_ref);
                  return Value::Null; // Or some other error indication if Value can represent it.
             }
@@ -260,7 +251,7 @@ impl DataObject {
         let mut new_obj = DataObject::new();
         // Check if self.data_ref is valid before proceeding
         if !oheap().lock().contains_key(self.data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: shallow_copy called on invalid data_ref {}", self.data_ref);
             return new_obj; // Return empty object
         }
@@ -274,7 +265,7 @@ impl DataObject {
         let mut new_obj = DataObject::new();
         // Check if self.data_ref is valid
         if !oheap().lock().contains_key(self.data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: deep_copy called on invalid data_ref {}", self.data_ref);
             return new_obj; // Return empty object
         }
@@ -467,7 +458,7 @@ impl DataObject {
         let old_data_opt = {
             let heap_guard = &mut oheap().lock();
             if !heap_guard.contains_key(self.data_ref) {
-                 #[cfg(not(feature = "no_std_support"))]
+                 #[cfg(feature = "std")]
                  println!("Warning: remove_property called on invalid data_ref {}", self.data_ref);
                  return; // Cannot remove from non-existent object
             }
@@ -501,7 +492,7 @@ impl DataObject {
                 let oheap_guard = &mut oheap().lock();
                 oheap_guard.incr(*new_obj_ref); // Increment ref for new data
                 if !oheap_guard.contains_key(self.data_ref) {
-                     #[cfg(not(feature = "no_std_support"))]
+                     #[cfg(feature = "std")]
                      println!("Warning: set_property target object (ref {}) does not exist in heap.", self.data_ref);
                      // Decrement the prematurely incremented ref count if we can't insert
                      oheap_guard.decr(*new_obj_ref); // This might be complex if decr also tries to GC
@@ -517,7 +508,7 @@ impl DataObject {
                     aheap_guard.incr(*new_arr_ref);
                 }
                 if !oheap_guard.contains_key(self.data_ref) {
-                     #[cfg(not(feature = "no_std_support"))]
+                     #[cfg(feature = "std")]
                      println!("Warning: set_property target object (ref {}) does not exist in heap.", self.data_ref);
                      // Also need to decrement aheap_guard for *new_arr_ref
                      // This error path gets complicated with multiple heaps.
@@ -533,7 +524,7 @@ impl DataObject {
                     bheap_guard.incr(*new_bytes_ref);
                 }
                 if !oheap_guard.contains_key(self.data_ref) {
-                     #[cfg(not(feature = "no_std_support"))]
+                     #[cfg(feature = "std")]
                      println!("Warning: set_property target object (ref {}) does not exist in heap.", self.data_ref);
                      return;
                 }
@@ -543,7 +534,7 @@ impl DataObject {
             _ => { // Primitive types
                 let oheap_guard = &mut oheap().lock();
                 if !oheap_guard.contains_key(self.data_ref) {
-                     #[cfg(not(feature = "no_std_support"))]
+                     #[cfg(feature = "std")]
                      println!("Warning: set_property target object (ref {}) does not exist in heap.", self.data_ref);
                      return;
                 }
@@ -603,13 +594,13 @@ impl DataObject {
     // only when the count drops to 1 (meaning this is the last reference being removed
     // before actual deallocation).
     pub(crate) fn delete(
-        oheap_guard: &mut Heap<HashMap<String, Data>>, // Pass as mutable ref
+        oheap_guard: &mut Heap<BTreeMap<String, Data>>, // Pass as mutable ref
         data_ref: usize,
         aheap_guard: &mut Heap<Vec<Data>>, // Pass as mutable ref
     ) {
         // Check if ref is valid before trying to get its count or data.
         if !oheap_guard.contains_key(data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: DataObject::delete called on non-existent ref {}", data_ref);
             return;
         }
@@ -617,7 +608,7 @@ impl DataObject {
         let current_count = oheap_guard.count(data_ref);
 
         if current_count == 0 { // Should not happen if contains_key passed. Paranoia.
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: DataObject::delete called on ref {} with count 0 (after contains_key check)", data_ref);
             return;
         }
@@ -665,7 +656,7 @@ impl DataObject {
     pub fn objects(&self) -> Vec<(String, Data)> {
         let heap_guard = &mut oheap().lock();
         if !heap_guard.contains_key(self.data_ref) {
-            #[cfg(not(feature = "no_std_support"))]
+            #[cfg(feature = "std")]
             println!("Warning: objects() called on invalid data_ref {}", self.data_ref);
             return Vec::new();
         }
@@ -673,7 +664,7 @@ impl DataObject {
         map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 
-    #[cfg(not(feature = "no_std_support"))]
+    #[cfg(feature = "std")]
     pub fn print_heap() {
         // This is a static method, doesn't depend on a specific DataObject instance.
         println!("Object Heap Keys: {:?}", oheap().lock().keys());

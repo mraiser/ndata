@@ -116,7 +116,7 @@ fn main() {
 | Type | What it is | Backing storage |
 |---|---|---|
 | `Data` | Enum holding any value: `DObject(usize)`, `DArray(usize)`, `DBytes(usize)`, `DString(String)`, `DInt(i64)`, `DFloat(f64)`, `DBoolean(bool)`, `DNull` | Scalars inline; containers by heap index |
-| `DataObject` | Dynamic map with `String` keys | `HashMap<String, Data>` in the object heap |
+| `DataObject` | Dynamic map with `String` keys, kept in sorted key order | `BTreeMap<String, Data>` in the object heap |
 | `DataArray` | Dynamic list | `Vec<Data>` in the array heap |
 | `DataBytes` | Byte *stream* — bytes plus read/write-open flags and an optional MIME type | `DataStream` in the bytes heap |
 
@@ -239,10 +239,28 @@ exists precisely to demonstrate that limitation.
 
 ## no_std
 
-A `no_std_support` feature flag exists with the goal of supporting embedded
-targets (via `alloc`), but the crate does not currently compile with it
-enabled. Treat no_std support as experimental/aspirational for now;
-contributions are welcome.
+ndata works in `#![no_std]` environments with an allocator. Disable the
+default `std` feature:
+
+```toml
+[dependencies]
+ndata = { version = "0.3", default-features = false }
+```
+
+What to know:
+
+* **An allocator is required** (this is no_std-with-`alloc`, not bare metal
+  without allocation). Provide a `#[global_allocator]` as usual.
+* **Atomics with compare-and-swap are required.** The internal spin lock uses
+  `AtomicUsize` CAS, so targets without atomic CAS (e.g. `thumbv6m-none-eabi`)
+  are not supported.
+* **Don't touch ndata from interrupt handlers.** The locks spin; an ISR that
+  preempts a lock holder on a single core will spin forever. Use it from
+  RTOS tasks/threads.
+* Without `std`, the diagnostic warnings some methods print on invalid refs
+  are compiled out, and `serde_support` is unavailable (it implies `std`).
+* Minimum supported Rust version is 1.81. CI builds the crate for
+  `thumbv7em-none-eabihf` to keep no_std support from regressing.
 
 ## Examples
 
@@ -282,7 +300,7 @@ You are an AI assistant working with the ndata crate in Rust. Key points:
 
 Core: ndata provides globally shared, thread-safe, JSON-like dynamic data structures:
 - Data: enum (DObject(usize), DArray(usize), DBytes(usize), DString(String), DInt(i64), DFloat(f64), DBoolean(bool), DNull).
-- DataObject: handle to a heap-stored HashMap<String, Data>.
+- DataObject: handle to a heap-stored BTreeMap<String, Data> (keys iterate in sorted order).
 - DataArray: handle to a heap-stored Vec<Data>.
 - DataBytes: handle to a heap-stored byte stream (bytes, read/write-open flags, optional MIME type).
 Handles hold a data_ref: usize (an index into a global in-memory heap).
